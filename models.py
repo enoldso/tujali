@@ -31,35 +31,35 @@ def init_db():
     
     # Create providers with locations and coordinates
     provider1 = Provider(
-        1, 1, 'Dr. John Doe', 
+        1, 1, 'Dr. John Doe', 'johndoe@example.com',
         'General Medicine', 
         'English, Swahili',
         'Nairobi, Kenya',
         (-1.2921, 36.8219)  # Nairobi coordinates
     )
     provider2 = Provider(
-        2, 1, 'Dr. Sarah Kimani', 
+        2, 1, 'Dr. Sarah Kimani', 'sarahk@example.com',
         'Pediatrics', 
         'English, Swahili',
         'Mombasa, Kenya',
         (-4.0435, 39.6682)  # Mombasa coordinates
     )
     provider3 = Provider(
-        3, 1, 'Dr. Mohammed Ali', 
+        3, 1, 'Dr. Mohammed Ali', 'mohammeda@example.com',
         'Cardiology', 
         'English, Swahili, Arabic',
         'Kisumu, Kenya',
         (-0.1022, 34.7617)  # Kisumu coordinates
     )
     provider4 = Provider(
-        4, 1, 'Dr. Elizabeth Ochieng', 
+        4, 1, 'Dr. Elizabeth Ochieng', 'elizabeto@example.com',
         'Obstetrics & Gynecology', 
         'English, Swahili, Luo',
         'Nakuru, Kenya',
         (-0.3031, 36.0800)  # Nakuru coordinates
     )
     provider5 = Provider(
-        5, 1, 'Dr. Thomas Mutua', 
+        5, 1, 'Dr. Thomas Mutua', 'thomasm@example.com',
         'General Medicine', 
         'English, Swahili, Kamba',
         'Eldoret, Kenya',
@@ -288,6 +288,16 @@ class User(UserMixin):
             if user.username == username:
                 return user
         return None
+        
+    @staticmethod
+    def username_exists(username):
+        """Check if a username already exists"""
+        return any(user.username == username for user in db['users'])
+        
+    @staticmethod
+    def email_exists(email):
+        """Check if an email already exists"""
+        return any(user.email.lower() == email.lower() for user in db['users'])
 
 def haversine(lat1, lon1, lat2, lon2):
     """
@@ -307,10 +317,11 @@ def haversine(lat1, lon1, lat2, lon2):
 
 class Provider:
     """Healthcare provider model"""
-    def __init__(self, id, user_id, name, specialization, languages, location=None, coordinates=None):
+    def __init__(self, id, user_id, name, email, specialization, languages, location=None, coordinates=None):
         self.id = id
         self.user_id = user_id
         self.name = name
+        self.email = email
         self.specialization = specialization
         self.languages = languages
         self.location = location  # Text description of location (e.g., "Nairobi, Kenya")

@@ -25,7 +25,8 @@
     "morgan": "^1.10.0",
     "passport": "^0.6.0",
     "passport-local": "^1.0.0",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "tujali-backend": "file:"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

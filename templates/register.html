@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+
+{% block title %}Doctor Registration - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-5">
+    <div class="col-md-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <h1 class="h3 mb-3 fw-normal">Tujali <span class="text-primary">Telehealth</span></h1>
+                    <p class="text-muted">Healthcare Provider Registration</p>
+                </div>
+                
+                <form method="POST" action="{{ url_for('register') }}" class="needs-validation" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                {{ form.username(class="form-control", id="username", placeholder="Username", required="required") }}
+                                <label for="username">Username</label>
+                                <div id="username-feedback" class="feedback"></div>
+                                {% if form.username.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.username.errors %}
+                                    <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                {{ form.email(class="form-control", id="email", placeholder="Email", type="email", required="required") }}
+                                <label for="email">Email</label>
+                                <div id="email-feedback" class="feedback"></div>
+                                {% if form.email.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.email.errors %}
+                                    <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                {{ form.password(class="form-control", id="floatingPassword", placeholder="Password") }}
+                                <label for="floatingPassword">Password</label>
+                                {% if form.password.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.password.errors %}
+                                    <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                {{ form.confirm_password(class="form-control", id="floatingConfirmPassword", placeholder="Confirm Password") }}
+                                <label for="floatingConfirmPassword">Confirm Password</label>
+                                {% if form.confirm_password.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.confirm_password.errors %}
+                                    <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                {{ form.full_name(class="form-control", id="floatingFullName", placeholder="Full Name") }}
+                                <label for="floatingFullName">Full Name</label>
+                                {% if form.full_name.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.full_name.errors %}
+                                    <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                {{ form.specialization(class="form-control", id="floatingSpecialization", placeholder="Specialization") }}
+                                <label for="floatingSpecialization">Specialization</label>
+                                {% if form.specialization.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.specialization.errors %}
+                                    <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="languages" class="form-label">Languages Spoken</label>
+                        {{ form.languages(class="form-select", id="languages", multiple=True, size="3") }}
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple languages</div>
+                        {% if form.languages.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.languages.errors %}
+                            <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-floating mb-4">
+                        {{ form.location(class="form-control", id="floatingLocation", placeholder="Practice Location") }}
+                        <label for="floatingLocation">Practice Location (City, Country)</label>
+                        {% if form.location.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.location.errors %}
+                            <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        {{ form.submit(class="btn btn-primary py-2") }}
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                <p class="text-center mb-0">
+                    Already have an account? <a href="{{ url_for('login') }}">Login here</a>
+                </p>
+            </div>
+        </div>
+        
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-body p-4">
+                <h4 class="card-title">Join Our Network</h4>
+                <p class="card-text">
+                    By registering as a healthcare provider, you'll gain access to our telehealth platform where you can:
+                </p>
+                <ul>
+                    <li>Connect with patients across Africa</li>
+                    <li>Manage appointments and patient records</li>
+                    <li>Access AI-powered health recommendations</li>
+                    <li>Provide remote consultations</li>
+                    <li>Expand your practice</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+{{ super() }}
+<style>
+    .feedback {
+        font-size: 0.875em;
+        margin-top: 0.25rem;
+    }
+    .valid-feedback {
+        color: #198754;
+    }
+    .invalid-feedback {
+        color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/register.js') }}"></script>
+<script>
+// Enable Bootstrap form validation
+(function () {
+  'use strict'
+  
+  // Fetch all the forms we want to apply custom Bootstrap validation styles to
+  var forms = document.querySelectorAll('.needs-validation')
+  
+  // Loop over them and prevent submission
+  Array.prototype.slice.call(forms)
+    .forEach(function (form) {
+      form.addEventListener('submit', function (event) {
+        if (!form.checkValidity()) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+        
+        form.classList.add('was-validated')
+      }, false)
+    })
+})()
+</script>
+{% endblock %}

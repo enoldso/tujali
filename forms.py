@@ -1,6 +1,41 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField, SelectField, IntegerField
-from wtforms.validators import DataRequired, Length, Email, Optional
+from wtforms import StringField, PasswordField, SubmitField, TextAreaField, SelectField, IntegerField, SelectMultipleField
+from wtforms.validators import DataRequired, Length, Email, Optional, EqualTo, ValidationError
+
+class RegistrationForm(FlaskForm):
+    """Registration form for new healthcare providers"""
+    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=50)])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[
+        DataRequired(),
+        Length(min=8, message='Password must be at least 8 characters long')
+    ])
+    confirm_password = PasswordField('Confirm Password', validators=[
+        DataRequired(),
+        EqualTo('password', message='Passwords must match')
+    ])
+    full_name = StringField('Full Name', validators=[DataRequired()])
+    specialization = StringField('Specialization', validators=[DataRequired()])
+    languages = SelectMultipleField('Languages Spoken', 
+        choices=[
+            ('en', 'English'),
+            ('sw', 'Swahili'),
+            ('fr', 'French'),
+            ('so', 'Somali'),
+            ('am', 'Amharic'),
+            ('or', 'Oromo')
+        ],
+        validators=[DataRequired()]
+    )
+    location = StringField('Practice Location', validators=[DataRequired()])
+    submit = SubmitField('Register')
+
+    def validate_username(self, username):
+        from models import User
+        user = User.get_by_username(username.data)
+        if user is not None:
+            raise ValidationError('Please use a different username.')
+
 
 class LoginForm(FlaskForm):
     """Login form for healthcare providers"""

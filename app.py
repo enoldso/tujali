@@ -1,10 +1,10 @@
 import os
 import logging
-from flask import Flask, render_template, redirect, url_for, request, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, abort
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import User, Provider, Patient, Appointment, Message, HealthInfo, UserInteraction, Payment, db, init_db
-from forms import LoginForm, MessageForm, HealthInfoForm, HealthTipsForm, HealthEducationForm
+from forms import LoginForm, MessageForm, HealthInfoForm, HealthTipsForm, HealthEducationForm, RegistrationForm
 from ussd_handler import ussd_callback
 import utils
 import ai_service
@@ -76,6 +76,85 @@ def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
+
+@app.route('/api/check-username')
+def check_username():
+    """Check if username is available"""
+    username = request.args.get('username', '').strip()
+    if not username:
+        return jsonify({'error': 'Username is required'}), 400
+        
+    exists = User.username_exists(username)
+    return jsonify({'exists': exists})
+
+
+@app.route('/api/check-email')
+def check_email():
+    """Check if email is available"""
+    email = request.args.get('email', '').strip().lower()
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+        
+    exists = User.email_exists(email)
+    return jsonify({'exists': exists})
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """Register a new healthcare provider"""
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        # Check if username already exists
+        if User.username_exists(form.username.data):
+            flash('Username already taken. Please choose a different one.', 'danger')
+            return render_template('register.html', form=form)
+            
+        # Check if email already exists
+        if User.email_exists(form.email.data):
+            flash('Email address is already registered. Please use a different email or log in.', 'danger')
+            return render_template('register.html', form=form)
+            
+        try:
+            # Create new user
+            user_id = len(db['users']) + 1
+            password_hash = f"hashed_{form.password.data}"  # Simple hashing for demo
+            
+            user = User(
+                id=user_id,
+                username=form.username.data,
+                email=form.email.data,
+                password_hash=password_hash
+            )
+            db['users'].append(user)
+            
+            # Create provider profile
+            provider_id = len(db['providers']) + 1
+            provider = Provider(
+                id=provider_id,
+                user_id=user_id,
+                name=form.full_name.data,
+                email=form.email.data,
+                specialization=form.specialization.data,
+                languages=", ".join(form.languages.data) if isinstance(form.languages.data, list) else form.languages.data,
+                location=form.location.data,
+                coordinates=None  # Could be set using geocoding in a real app
+            )
+            db['providers'].append(provider)
+            
+            flash('Registration successful! You can now log in.', 'success')
+            logger.info(f"New provider registered: {user.username} (ID: {user_id})")
+            return redirect(url_for('login'))
+            
+        except Exception as e:
+            logger.error(f"Error during registration: {str(e)}")
+            logger.exception("Registration error:")
+            flash('An error occurred during registration. Please try again.', 'danger')
+    
+    return render_template('register.html', form=form)
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
