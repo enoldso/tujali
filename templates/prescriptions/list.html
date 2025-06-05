@@ -1,0 +1,183 @@
+{% extends "prescriptions/base.html" %}
+
+{% block page_title %}All Prescriptions{% endblock %}
+
+{% block prescription_content %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Recent Prescriptions</h5>
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" 
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <i data-feather="filter" class="feather-sm me-1"></i> Filter
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="filterDropdown">
+                <li><a class="dropdown-item" href="?status=all">All</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="?status=pending">Pending</a></li>
+                <li><a class="dropdown-item" href="?status=filled">Filled</a></li>
+                <li><a class="dropdown-item" href="?status=dispensed">Dispensed</a></li>
+                <li><a class="dropdown-item" href="?status=cancelled">Cancelled</a></li>
+            </ul>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if prescriptions %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Patient</th>
+                            <th>Medications</th>
+                            <th>Status</th>
+                            <th>Collection</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for prescription in prescriptions %}
+                        <tr>
+                            <td>{{ prescription.created_at.strftime('%b %d, %Y') }}</td>
+                            <td>
+                                {% set patient = Patient.get_by_id(prescription.patient_id) %}
+                                {{ patient.name if patient else 'Unknown' }}
+                            </td>
+                            <td>
+                                {% if prescription.medication_details %}
+                                    {{ prescription.medication_details[0].name }}
+                                    {% if prescription.medication_details|length > 1 %}
+                                        +{{ prescription.medication_details|length - 1 }} more
+                                    {% endif %}
+                                {% else %}
+                                    No medications
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 
+                                    'primary' if prescription.status == 'pending' else
+                                    'success' if prescription.status == 'filled' else
+                                    'info' if prescription.status == 'dispensed' else
+                                    'secondary' if prescription.status == 'cancelled' else
+                                    'secondary'
+                                }}">
+                                    {{ prescription.status|title }}
+                                </span>
+                            </td>
+                            <td>
+                                {{ 
+                                    'Local Delivery' if prescription.collection_method == 'local_delivery' else
+                                    'Drone Delivery' if prescription.collection_method == 'drone_delivery' else
+                                    'Pharmacy Pickup' 
+                                }}
+                                {% if prescription.pharmacy_id %}
+                                    <br>
+                                    <small class="text-muted">
+                                        {% set pharmacy = Pharmacy.get_by_id(prescription.pharmacy_id) %}
+                                        {{ pharmacy.name if pharmacy else 'Pharmacy not found' }}
+                                    </small>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('view_prescription', prescription_id=prescription.id) }}" 
+                                       class="btn btn-sm btn-outline-primary"
+                                       data-bs-toggle="tooltip" title="View Details">
+                                        <i data-feather="eye" class="feather-sm"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                            data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i data-feather="more-vertical" class="feather-sm"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li>
+                                            <a class="dropdown-item" href="#" 
+                                               onclick="updateStatus('{{ prescription.id }}', 'filled'); return false;">
+                                                <i data-feather="check-circle" class="feather-sm me-2"></i> Mark as Filled
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" href="#" 
+                                               onclick="updateStatus('{{ prescription.id }}', 'dispensed'); return false;">
+                                                <i data-feather="truck" class="feather-sm me-2"></i> Mark as Dispensed
+                                            </a>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <a class="dropdown-item text-danger" href="#" 
+                                               onclick="if(confirm('Are you sure you want to cancel this prescription?')) { updateStatus('{{ prescription.id }}', 'cancelled'); } return false;">
+                                                <i data-feather="x-circle" class="feather-sm me-2"></i> Cancel Prescription
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <div class="mb-3">
+                    <i data-feather="file-text" class="feather-xxl text-muted"></i>
+                </div>
+                <h5>No prescriptions found</h5>
+                <p class="text-muted">Create your first prescription to get started.</p>
+                <a href="{{ url_for('create_prescription') }}" class="btn btn-primary mt-2">
+                    <i data-feather="plus" class="feather-sm me-2"></i> New Prescription
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+function updateStatus(prescriptionId, status) {
+    if (!confirm('Are you sure you want to update the status of this prescription?')) {
+        return false;
+    }
+    
+    const formData = new FormData();
+    formData.append('status', status);
+    
+    fetch(`/prescriptions/${prescriptionId}/update_status`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-success alert-dismissible fade show';
+            alert.role = 'alert';
+            alert.innerHTML = `
+                ${data.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            document.querySelector('.card-body').insertBefore(alert, document.querySelector('.card-body').firstChild);
+            
+            // Reload the page after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            alert(data.message || 'Failed to update status');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while updating the status');
+    });
+    
+    return false;
+}
+</script>
+{% endblock %}

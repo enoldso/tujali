@@ -1,0 +1,89 @@
+<!-- Sidebar -->
+<nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-dark text-white sidebar collapse">
+    <div class="position-sticky pt-3">
+        <div class="px-3 mb-4">
+            <h5 class="text-white">Navigation</h5>
+        </div>
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link text-white {% if request.endpoint == 'dashboard' %}active bg-primary{% endif %}" 
+                   href="{{ url_for('dashboard') }}">
+                    <i data-feather="home" class="me-2"></i>
+                    Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-white {% if request.endpoint == 'patients' %}active bg-primary{% endif %}" 
+                   href="{{ url_for('patients') }}">
+                    <i data-feather="users" class="me-2"></i>
+                    Patients
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-white {% if request.endpoint == 'appointments' %}active bg-primary{% endif %}" 
+                   href="{{ url_for('appointments') }}">
+                    <i data-feather="calendar" class="me-2"></i>
+                    Appointments
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-white {% if request.endpoint == 'messages' or request.endpoint == 'patient_messages' %}active bg-primary{% endif %}" 
+                   href="{{ url_for('messages') }}">
+                    <i data-feather="message-square" class="me-2"></i>
+                    Messages
+                    {% if unread_count and unread_count > 0 %}
+                    <span class="badge bg-danger rounded-pill ms-1">{{ unread_count }}</span>
+                    {% endif %}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-white {% if request.endpoint == 'health_info' %}active bg-primary{% endif %}" 
+                   href="{{ url_for('health_info') }}">
+                    <i data-feather="file-text" class="me-2"></i>
+                    Health Info
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-white {% if request.endpoint in ['prescriptions', 'create_prescription', 'view_prescription'] %}active bg-primary{% endif %}" 
+                   href="{{ url_for('prescriptions') }}">
+                    <i data-feather="file-plus" class="me-2"></i>
+                    Prescriptions
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-white {% if request.endpoint == 'symptom_dashboard' %}active bg-primary{% endif %}" 
+                   href="{{ url_for('symptom_dashboard') }}">
+                    <i data-feather="activity" class="me-2"></i>
+                    Symptom Dashboard
+                </a>
+            </li>
+        </ul>
+
+        <div class="border-top border-secondary mt-4 pt-3">
+            <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mb-2 text-muted">
+                <span>Account</span>
+            </h6>
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="{{ url_for('dashboard') }}">
+                        <i data-feather="user" class="me-2"></i>
+                        My Account
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="{{ url_for('dashboard') }}">
+                        <i data-feather="settings" class="me-2"></i>
+                        Settings
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-danger" href="{{ url_for('logout') }}" 
+                       onclick="return confirm('Are you sure you want to log out?')">
+                        <i data-feather="log-out" class="me-2"></i>
+                        Logout
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>

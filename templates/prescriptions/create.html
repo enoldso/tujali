@@ -1,0 +1,257 @@
+{% extends "prescriptions/base.html" %}
+
+{% block page_title %}New Prescription{% endblock %}
+
+{% block prescription_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Prescription Details</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('create_prescription') }}" id="prescriptionForm">
+                    {{ form.hidden_tag() }}
+                    
+                    <!-- Patient Selection -->
+                    <div class="mb-4">
+                        <h6 class="border-bottom pb-2 mb-3">Patient Information</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                {{ form.patient_id.label(class="form-label") }}
+                                {{ form.patient_id(class="form-select" + (' is-invalid' if form.patient_id.errors else '')) }}
+                                {% if form.patient_id.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.patient_id.errors[0] }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">Select the patient for this prescription</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Medications -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">Medications</h6>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="addMedication">
+                                <i data-feather="plus" class="feather-sm me-1"></i> Add Medication
+                            </button>
+                        </div>
+                        
+                        <div id="medications-container">
+                            {% for medication in form.medications %}
+                            <div class="medication-entry card mb-3">
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            {{ medication.medication_name.label(class="form-label") }}
+                                            {{ medication.medication_name(class="form-control" + (' is-invalid' if medication.medication_name.errors else ''), placeholder="e.g., Amoxicillin") }}
+                                            {% if medication.medication_name.errors %}
+                                                <div class="invalid-feedback">
+                                                    {{ medication.medication_name.errors[0] }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-2">
+                                            {{ medication.dosage.label(class="form-label") }}
+                                            {{ medication.dosage(class="form-control" + (' is-invalid' if medication.dosage.errors else ''), placeholder="e.g., 500mg") }}
+                                            {% if medication.dosage.errors %}
+                                                <div class="invalid-feedback">
+                                                    {{ medication.dosage.errors[0] }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-3">
+                                            {{ medication.frequency.label(class="form-label") }}
+                                            {{ medication.frequency(class="form-select" + (' is-invalid' if medication.frequency.errors else '')) }}
+                                            {% if medication.frequency.errors %}
+                                                <div class="invalid-feedback">
+                                                    {{ medication.frequency.errors[0] }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-2">
+                                            {{ medication.duration.label(class="form-label") }}
+                                            {{ medication.duration(class="form-control" + (' is-invalid' if medication.duration.errors else ''), placeholder="e.g., 7 days") }}
+                                            {% if medication.duration.errors %}
+                                                <div class="invalid-feedback">
+                                                    {{ medication.duration.errors[0] }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-1 d-flex align-items-end">
+                                            <button type="button" class="btn btn-outline-danger btn-sm remove-medication" {% if loop.first %}disabled{% endif %}>
+                                                <i data-feather="trash-2" class="feather-sm"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Instructions -->
+                    <div class="mb-4">
+                        <h6 class="border-bottom pb-2 mb-3">Instructions</h6>
+                        <div class="mb-3">
+                            {{ form.instructions.label(class="form-label") }}
+                            {{ form.instructions(class="form-control" + (' is-invalid' if form.instructions.errors else ''), rows="3") }}
+                            {% if form.instructions.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.instructions.errors[0] }}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">Provide any special instructions for taking the medication.</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Collection Method -->
+                    <div class="mb-4">
+                        <h6 class="border-bottom pb-2 mb-3">Collection Method</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                {{ form.collection_method.label(class="form-label") }}
+                                {{ form.collection_method(class="form-select" + (' is-invalid' if form.collection_method.errors else '')) }}
+                                {% if form.collection_method.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.collection_method.errors[0] }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6" id="pharmacyField">
+                                {{ form.pharmacy_id.label(class="form-label") }}
+                                {{ form.pharmacy_id(class="form-select" + (' is-invalid' if form.pharmacy_id.errors else '')) }}
+                                {% if form.pharmacy_id.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.pharmacy_id.errors[0] }}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">Select a pharmacy for pickup or delivery</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('prescriptions') }}" class="btn btn-outline-secondary me-md-2">
+                            <i data-feather="x" class="feather-sm me-1"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i data-feather="save" class="feather-sm me-1"></i> Save Prescription
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    // Toggle pharmacy field based on collection method
+    const collectionMethod = document.getElementById('{{ form.collection_method.id }}');
+    const pharmacyField = document.getElementById('pharmacyField');
+    
+    function togglePharmacyField() {
+        if (collectionMethod.value === 'pickup') {
+            pharmacyField.style.display = 'block';
+            document.getElementById('{{ form.pharmacy_id.id }}').setAttribute('required', 'required');
+        } else {
+            pharmacyField.style.display = 'none';
+            document.getElementById('{{ form.pharmacy_id.id }}').removeAttribute('required');
+        }
+    }
+    
+    // Initial toggle
+    togglePharmacyField();
+    
+    // Add event listener
+    collectionMethod.addEventListener('change', togglePharmacyField);
+    
+    // Add medication
+    const addButton = document.getElementById('addMedication');
+    const container = document.getElementById('medications-container');
+    const totalForms = document.getElementById('{{ form.medications.id }}_TOTAL_FORMS');
+    
+    addButton.addEventListener('click', function() {
+        const formCount = parseInt(totalForms.value);
+        const newForm = document.querySelector('.medication-entry').cloneNode(true);
+        const formRegex = RegExp(`(${form.medications.prefix}|__prefix__)`, 'g');
+        
+        // Update the form count
+        totalForms.setAttribute('value', formCount + 1);
+        
+        // Update the new form with the correct index
+        newForm.innerHTML = newForm.innerHTML.replace(formRegex, formCount);
+        
+        // Clear the values
+        const inputs = newForm.querySelectorAll('input, select');
+        inputs.forEach(function(input) {
+            if (input.type === 'text' || input.tagName === 'SELECT' || input.type === 'hidden') {
+                input.value = '';
+            }
+        });
+        
+        // Enable remove button
+        const removeBtn = newForm.querySelector('.remove-medication');
+        if (removeBtn) {
+            removeBtn.disabled = false;
+            removeBtn.addEventListener('click', function() {
+                newForm.remove();
+                updateFormIndices();
+            });
+        }
+        
+        // Add the new form
+        container.appendChild(newForm);
+        
+        // Re-initialize feather icons for the new form
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
+    });
+    
+    // Remove medication
+    document.querySelectorAll('.remove-medication').forEach(function(button) {
+        button.addEventListener('click', function() {
+            if (document.querySelectorAll('.medication-entry').length > 1) {
+                this.closest('.medication-entry').remove();
+                updateFormIndices();
+            }
+        });
+    });
+    
+    // Update form indices for proper form submission
+    function updateFormIndices() {
+        const forms = document.querySelectorAll('.medication-entry');
+        totalForms.setAttribute('value', forms.length);
+        
+        forms.forEach(function(form, index) {
+            // Update the form fields' names and IDs
+            const inputs = form.querySelectorAll('input, select, label');
+            
+            inputs.forEach(function(input) {
+                if (input.id) {
+                    input.id = input.id.replace(/\d+/, index);
+                }
+                if (input.name) {
+                    input.name = input.name.replace(/\d+/, index);
+                }
+                if (input.htmlFor) {
+                    input.htmlFor = input.htmlFor.replace(/\d+/, index);
+                }
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

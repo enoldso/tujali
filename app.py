@@ -3,8 +3,8 @@ import logging
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, abort
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import User, Provider, Patient, Appointment, Message, HealthInfo, UserInteraction, Payment, db, init_db
-from forms import LoginForm, MessageForm, HealthInfoForm, HealthTipsForm, HealthEducationForm, RegistrationForm
+from models import User, Provider, Patient, Appointment, Message, HealthInfo, UserInteraction, Payment, Prescription, Pharmacy, db, init_db, init_pharmacy_data
+from forms import LoginForm, MessageForm, HealthInfoForm, HealthTipsForm, HealthEducationForm, RegistrationForm, WalkInPatientForm, PrescriptionForm
 from ussd_handler import ussd_callback
 import utils
 import ai_service
@@ -30,7 +30,9 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Initialize database (in-memory for MVP)
+# Initialize database and sample data
+init_db()
+init_pharmacy_data()  # Initialize sample pharmacy data
 # Double check database initialization
 init_db()
 
@@ -138,6 +140,7 @@ def register():
                 name=form.full_name.data,
                 email=form.email.data,
                 specialization=form.specialization.data,
+                license_number=form.license_number.data,
                 languages=", ".join(form.languages.data) if isinstance(form.languages.data, list) else form.languages.data,
                 location=form.location.data,
                 coordinates=None  # Could be set using geocoding in a real app
@@ -208,6 +211,74 @@ def logout():
     logout_user()
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
+
+@app.route('/add_walkin', methods=['GET', 'POST'])
+@login_required
+def add_walkin():
+    """Add a walk-in patient"""
+    provider = Provider.get_by_user_id(current_user.id)
+    if not provider:
+        flash('Provider profile not found', 'danger')
+        return redirect(url_for('login'))
+    
+    form = WalkInPatientForm()
+    if form.validate_on_submit():
+        try:
+            # Create new patient
+            patient_id = len(db['patients']) + 1
+            patient = Patient(
+                id=patient_id,
+                name=form.name.data,
+                phone=form.phone.data,
+                age=form.age.data,
+                gender=form.gender.data,
+                provider_id=provider.id,
+                is_walk_in=True
+            )
+            db['patients'].append(patient)
+            
+            # Create initial health info with chief complaint
+            health_info_id = len(db['health_info']) + 1
+            health_info = HealthInfo(
+                id=health_info_id,
+                patient_id=patient_id,
+                title='Initial Visit - Chief Complaint',
+                content=form.chief_complaint.data,
+                language='en'  # Default to English
+            )
+            db['health_info'].append(health_info)
+            
+            # Create a new appointment for the walk-in
+            appointment_id = len(db['appointments']) + 1
+            from datetime import datetime, timedelta
+            appointment = Appointment(
+                id=appointment_id,
+                patient_id=patient_id,
+                provider_id=provider.id,
+                date=datetime.now().strftime('%Y-%m-%d'),
+                time=datetime.now().strftime('%H:%M'),
+                status='completed',  # Mark as completed since it's a walk-in
+                notes=f'Walk-in patient. Chief complaint: {form.chief_complaint.data}'
+            )
+            db['appointments'].append(appointment)
+            
+            flash(f'Walk-in patient {patient.name} added successfully!', 'success')
+            logger.info(f'New walk-in patient added: {patient.name} (ID: {patient_id})')
+            return redirect(url_for('patient_detail', patient_id=patient_id))
+            
+        except Exception as e:
+            logger.error(f'Error adding walk-in patient: {str(e)}')
+            logger.exception('Error details:')
+            flash('An error occurred while adding the walk-in patient. Please try again.', 'danger')
+    
+    # Get unread message count for the sidebar
+    unread_count = len([m for m in db['messages'] 
+                      if m.provider_id == current_user.id and not m.is_read])
+    
+    return render_template('add_walkin.html', 
+                         form=form, 
+                         provider=provider,
+                         unread_count=unread_count)
 
 @app.route('/dashboard')
 @login_required
@@ -769,6 +840,153 @@ def update_appointment_with_tracking():
     return old_update_appointment()
 
 app.view_functions['update_appointment'] = update_appointment_with_tracking
+
+
+# Prescription Management Routes
+
+@app.route('/prescriptions')
+@login_required
+def prescriptions():
+    """List all prescriptions"""
+    provider = Provider.get_by_user_id(current_user.id)
+    if not provider:
+        flash('Provider profile not found', 'danger')
+        return redirect(url_for('dashboard'))
+        
+    # Get all prescriptions for the current provider
+    all_prescriptions = Prescription.get_by_provider(provider.id)
+    
+    # Get unread message count for sidebar
+    unread_count = len([m for m in db['messages'] if m.provider_id == current_user.id and not m.is_read])
+    
+    return render_template('prescriptions/list.html', 
+                         prescriptions=all_prescriptions,
+                         provider=provider,
+                         unread_count=unread_count)
+
+
+@app.route('/prescriptions/create', methods=['GET', 'POST'])
+@login_required
+def create_prescription():
+    """Create a new prescription"""
+    provider = Provider.get_by_user_id(current_user.id)
+    if not provider:
+        flash('Provider profile not found', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    form = PrescriptionForm()
+    
+    if form.validate_on_submit():
+        # Prepare medication details
+        medications = []
+        for med in form.medications.data:
+            medications.append({
+                'name': med['name'],
+                'dosage': med['dosage'],
+                'frequency': med['frequency'],
+                'duration': med['duration']
+            })
+        
+        # Create prescription
+        prescription = Prescription.create(
+            patient_id=form.patient_id.data,
+            provider_id=provider.id,
+            medication_details=medications,
+            dosage="",  # Handled in medication details
+            frequency="",  # Handled in medication details
+            duration="",  # Handled in medication details
+            instructions=form.instructions.data,
+            collection_method=form.collection_method.data,
+            pharmacy_id=form.pharmacy_id.data if form.pharmacy_id.data != 0 else None
+        )
+        
+        flash('Prescription created successfully!', 'success')
+        return redirect(url_for('view_prescription', prescription_id=prescription.id))
+    
+    # Get unread message count for sidebar
+    unread_count = len([m for m in db['messages'] if m.provider_id == current_user.id and not m.is_read])
+    
+    return render_template('prescriptions/create.html', 
+                         form=form, 
+                         provider=provider,
+                         unread_count=unread_count)
+
+
+@app.route('/prescriptions/<int:prescription_id>')
+@login_required
+def view_prescription(prescription_id):
+    """View prescription details"""
+    provider = Provider.get_by_user_id(current_user.id)
+    if not provider:
+        flash('Provider profile not found', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # Get the prescription
+    prescription = Prescription.get_by_id(prescription_id)
+    if not prescription:
+        flash('Prescription not found', 'danger')
+        return redirect(url_for('prescriptions'))
+    
+    # Verify the prescription belongs to the provider
+    if prescription.provider_id != provider.id:
+        flash('You are not authorized to view this prescription', 'danger')
+        return redirect(url_for('prescriptions'))
+    
+    # Get patient and pharmacy details
+    patient = Patient.get_by_id(prescription.patient_id)
+    pharmacy = Pharmacy.get_by_id(prescription.pharmacy_id) if prescription.pharmacy_id else None
+    
+    # Get unread message count for sidebar
+    unread_count = len([m for m in db['messages'] if m.provider_id == current_user.id and not m.is_read])
+    
+    return render_template('prescriptions/view.html',
+                         prescription=prescription,
+                         patient=patient,
+                         pharmacy=pharmacy,
+                         provider=provider,
+                         unread_count=unread_count)
+
+
+@app.route('/prescriptions/<int:prescription_id>/update_status', methods=['POST'])
+@login_required
+def update_prescription_status(prescription_id):
+    """Update prescription status (e.g., mark as filled, dispensed)"""
+    provider = Provider.get_by_user_id(current_user.id)
+    if not provider:
+        return jsonify({'success': False, 'message': 'Provider not found'}), 403
+    
+    # Get the prescription
+    prescription = Prescription.get_by_id(prescription_id)
+    if not prescription:
+        return jsonify({'success': False, 'message': 'Prescription not found'}), 404
+    
+    # Verify the prescription belongs to the provider
+    if prescription.provider_id != provider.id:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    # Get status from request
+    status = request.form.get('status')
+    if status not in ['pending', 'filled', 'dispensed', 'cancelled']:
+        return jsonify({'success': False, 'message': 'Invalid status'}), 400
+    
+    # Update status
+    prescription.update_status(status)
+    
+    # Track this interaction
+    track_interaction(
+        prescription.patient_id,
+        'prescription',
+        f'Prescription status updated to {status}',
+        {'prescription_id': prescription_id, 'status': status}
+    )
+    
+    return jsonify({
+        'success': True,
+        'message': f'Prescription marked as {status}',
+        'status': status,
+        'status_display': status.capitalize(),
+        'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    })
 
 
 # Hook into share_health_tips to track interactions

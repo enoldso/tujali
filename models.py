@@ -2,6 +2,8 @@ from flask_login import UserMixin
 from datetime import datetime, timedelta
 from math import radians, cos, sin, asin, sqrt
 import uuid
+from typing import List, Dict, Any, Optional
+import json
 
 # In-memory database for prototype
 db = {
@@ -12,7 +14,9 @@ db = {
     'messages': [],
     'health_info': [],
     'user_interactions': [],
-    'payments': []
+    'payments': [],
+    'prescriptions': [],
+    'pharmacies': []
 }
 
 def init_db():
@@ -32,35 +36,35 @@ def init_db():
     # Create providers with locations and coordinates
     provider1 = Provider(
         1, 1, 'Dr. John Doe', 'johndoe@example.com',
-        'General Medicine', 
+        'General Medicine', 'KMPDB-12345',
         'English, Swahili',
         'Nairobi, Kenya',
         (-1.2921, 36.8219)  # Nairobi coordinates
     )
     provider2 = Provider(
         2, 1, 'Dr. Sarah Kimani', 'sarahk@example.com',
-        'Pediatrics', 
+        'Pediatrics', 'KMPDB-23456',
         'English, Swahili',
         'Mombasa, Kenya',
         (-4.0435, 39.6682)  # Mombasa coordinates
     )
     provider3 = Provider(
         3, 1, 'Dr. Mohammed Ali', 'mohammeda@example.com',
-        'Cardiology', 
+        'Cardiology', 'KMPDB-34567',
         'English, Swahili, Arabic',
         'Kisumu, Kenya',
         (-0.1022, 34.7617)  # Kisumu coordinates
     )
     provider4 = Provider(
         4, 1, 'Dr. Elizabeth Ochieng', 'elizabeto@example.com',
-        'Obstetrics & Gynecology', 
+        'Obstetrics & Gynecology', 'KMPDB-45678',
         'English, Swahili, Luo',
         'Nakuru, Kenya',
         (-0.3031, 36.0800)  # Nakuru coordinates
     )
     provider5 = Provider(
         5, 1, 'Dr. Thomas Mutua', 'thomasm@example.com',
-        'General Medicine', 
+        'General Medicine', 'KMPDB-56789',
         'English, Swahili, Kamba',
         'Eldoret, Kenya',
         (0.5143, 35.2698)  # Eldoret coordinates
@@ -317,12 +321,13 @@ def haversine(lat1, lon1, lat2, lon2):
 
 class Provider:
     """Healthcare provider model"""
-    def __init__(self, id, user_id, name, email, specialization, languages, location=None, coordinates=None):
+    def __init__(self, id, user_id, name, email, specialization, license_number, languages, location=None, coordinates=None):
         self.id = id
         self.user_id = user_id
         self.name = name
         self.email = email
         self.specialization = specialization
+        self.license_number = license_number  # Medical license number
         self.languages = languages
         self.location = location  # Text description of location (e.g., "Nairobi, Kenya")
         self.coordinates = coordinates  # Tuple (latitude, longitude) for distance calculations
@@ -938,19 +943,10 @@ class Payment:
             dict: Summary statistics
         """
         payments = db['payments']
-        total_amount = sum(p.amount for p in payments)
-        pending_amount = sum(p.amount for p in payments if p.status == "pending")
-        completed_amount = sum(p.amount for p in payments if p.status == "completed")
-        
-        # Calculate amounts by payment method
-        mpesa_amount = sum(p.amount for p in payments if p.payment_method == "mpesa")
-        cash_amount = sum(p.amount for p in payments if p.payment_method == "cash")
-        insurance_amount = sum(p.amount for p in payments if p.payment_method == "insurance")
-        
-        # Calculate completed amounts by payment method
-        mpesa_completed = sum(p.amount for p in payments if p.payment_method == "mpesa" and p.status == "completed")
-        cash_completed = sum(p.amount for p in payments if p.payment_method == "cash" and p.status == "completed")
-        insurance_completed = sum(p.amount for p in payments if p.payment_method == "insurance" and p.status == "completed")
+        total = sum(p.amount for p in payments if p.status == 'completed')
+        pending = sum(1 for p in payments if p.status == 'pending')
+        completed = sum(1 for p in payments if p.status == 'completed')
+        failed = sum(1 for p in payments if p.status == 'failed')
         
         return {
             'total_count': len(payments),
@@ -978,3 +974,265 @@ class Payment:
                 }
             }
         }
+
+
+class Pharmacy:
+    """Pharmacy model for medication dispensing locations"""
+    
+    def __init__(self, id, name, address, city, state, phone, email=None, coordinates=None, created_at=None):
+        self.id = id
+        self.name = name
+        self.address = address
+        self.city = city
+        self.state = state
+        self.phone = phone
+        self.email = email
+        self.coordinates = coordinates  # (latitude, longitude)
+        self.created_at = created_at or datetime.now()
+    
+    @staticmethod
+    def get_by_id(pharmacy_id: int) -> 'Pharmacy':
+        """Get pharmacy by ID"""
+        return next((p for p in db['pharmacies'] if p.id == pharmacy_id), None)
+    
+    @staticmethod
+    def get_all() -> List['Pharmacy']:
+        """Get all pharmacies"""
+        return db['pharmacies']
+    
+    @staticmethod
+    def create(name: str, address: str, city: str, state: str, phone: str, 
+              email: str = None, coordinates: tuple = None) -> 'Pharmacy':
+        """Create a new pharmacy"""
+        if 'pharmacies' not in db:
+            db['pharmacies'] = []
+        pharmacy_id = max([p.id for p in db['pharmacies']], default=0) + 1
+        pharmacy = Pharmacy(pharmacy_id, name, address, city, state, phone, email, coordinates)
+        db['pharmacies'].append(pharmacy)
+        return pharmacy
+    
+    @staticmethod
+    def find_nearby(latitude: float, longitude: float, radius_km: float = 10) -> List['Pharmacy']:
+        """
+        Find pharmacies near the given coordinates within the specified radius
+        
+        Args:
+            latitude (float): Latitude of the reference point
+            longitude (float): Longitude of the reference point
+            radius_km (float): Search radius in kilometers
+            
+        Returns:
+            List[Pharmacy]: List of pharmacies within the radius, sorted by distance
+        """
+        if 'pharmacies' not in db:
+            return []
+            
+        nearby = []
+        for pharmacy in db['pharmacies']:
+            if not pharmacy.coordinates:
+                continue
+                
+            distance = haversine(
+                latitude, longitude,
+                pharmacy.coordinates[0], pharmacy.coordinates[1]
+            )
+            
+            if distance <= radius_km:
+                nearby.append((pharmacy, distance))
+        
+        # Sort by distance
+        nearby.sort(key=lambda x: x[1])
+        return [pharmacy for pharmacy, _ in nearby]
+
+
+class Prescription:
+    """Prescription model for patient medications"""
+    
+    def __init__(self, id, provider_id, patient_id, medication_details, instructions, 
+                 collection_method='pharmacy_pickup', pharmacy_id=None, status='pending', 
+                 created_at=None, updated_at=None):
+        self.id = id
+        self.provider_id = provider_id
+        self.patient_id = patient_id
+        self.medication_details = medication_details  # List of dicts with medication info
+        self.instructions = instructions
+        self.collection_method = collection_method  # 'pharmacy_pickup', 'local_delivery', 'drone_delivery'
+        self.pharmacy_id = pharmacy_id  # Required if collection_method is 'pharmacy_pickup' or 'local_delivery'
+        self.status = status  # 'pending', 'filled', 'dispensed', 'cancelled'
+        self.created_at = created_at or datetime.now()
+        self.updated_at = updated_at or datetime.now()
+    
+    @staticmethod
+    def create(provider_id: int, patient_id: int, medication_details: List[Dict[str, Any]], 
+              instructions: str, collection_method: str = 'pharmacy_pickup', 
+              pharmacy_id: int = None) -> 'Prescription':
+        """
+        Create a new prescription
+        
+        Args:
+            provider_id (int): ID of the prescribing provider
+            patient_id (int): ID of the patient
+            medication_details (List[Dict]): List of medication details, each with 'name', 'dosage', 'frequency', 'duration', 'quantity'
+            instructions (str): Additional instructions for the patient
+            collection_method (str): How the medication will be collected
+            pharmacy_id (int, optional): ID of the pharmacy if applicable
+            
+        Returns:
+            Prescription: Newly created prescription
+        """
+        if 'prescriptions' not in db:
+            db['prescriptions'] = []
+            
+        prescription_id = max([p.id for p in db['prescriptions']], default=0) + 1
+        prescription = Prescription(
+            id=prescription_id,
+            provider_id=provider_id,
+            patient_id=patient_id,
+            medication_details=medication_details,
+            instructions=instructions,
+            collection_method=collection_method,
+            pharmacy_id=pharmacy_id,
+            status='pending'
+        )
+        db['prescriptions'].append(prescription)
+        return prescription
+    
+    @staticmethod
+    def get_by_id(prescription_id: int) -> Optional['Prescription']:
+        """Get prescription by ID"""
+        if 'prescriptions' not in db:
+            return None
+        return next((p for p in db['prescriptions'] if p.id == prescription_id), None)
+    
+    @staticmethod
+    def get_by_provider(provider_id: int) -> List['Prescription']:
+        """Get all prescriptions for a provider"""
+        if 'prescriptions' not in db:
+            return []
+        return [p for p in db['prescriptions'] if p.provider_id == provider_id]
+    
+    @staticmethod
+    def get_by_patient(patient_id: int) -> List['Prescription']:
+        """Get all prescriptions for a patient"""
+        if 'prescriptions' not in db:
+            return []
+        return [p for p in db['prescriptions'] if p.patient_id == patient_id]
+    
+    @staticmethod
+    def update_status(prescription_id: int, status: str) -> bool:
+        """
+        Update prescription status
+        
+        Args:
+            prescription_id (int): ID of the prescription to update
+            status (str): New status ('pending', 'filled', 'dispensed', 'cancelled')
+            
+        Returns:
+            bool: True if updated, False if not found
+        """
+        if 'prescriptions' not in db:
+            return False
+            
+        prescription = Prescription.get_by_id(prescription_id)
+        if not prescription:
+            return False
+            
+        prescription.status = status
+        prescription.updated_at = datetime.now()
+        return True
+    
+    @staticmethod
+    def get_recent(limit: int = 5) -> List['Prescription']:
+        """
+        Get most recent prescriptions
+        
+        Args:
+            limit (int): Maximum number of prescriptions to return
+            
+        Returns:
+            List[Prescription]: List of recent prescriptions, most recent first
+        """
+        if 'prescriptions' not in db:
+            return []
+            
+        return sorted(
+            db['prescriptions'],
+            key=lambda p: p.created_at,
+            reverse=True
+        )[:limit]
+
+
+def init_pharmacy_data():
+    """Initialize sample pharmacy data for testing and development"""
+    if 'pharmacies' not in db:
+        db['pharmacies'] = []
+    
+    # Clear existing pharmacies if any
+    db['pharmacies'].clear()
+    
+    # Sample pharmacies in different locations
+    sample_pharmacies = [
+        {
+            'name': 'Nairobi Central Pharmacy',
+            'address': 'Kenyatta Avenue, 123',
+            'city': 'Nairobi',
+            'state': 'Nairobi',
+            'phone': '+254700111222',
+            'email': 'nairobi.central@pharmacy.ke',
+            'coordinates': (-1.2921, 36.8219)  # Nairobi coordinates
+        },
+        {
+            'name': 'Mombasa Coastal Drugs',
+            'address': 'Moi Avenue, 456',
+            'city': 'Mombasa',
+            'state': 'Mombasa',
+            'phone': '+254722333444',
+            'email': 'coastal.drugs@pharmacy.ke',
+            'coordinates': (-4.0435, 39.6682)  # Mombasa coordinates
+        },
+        {
+            'name': 'Kisumu Lakeview Pharmacy',
+            'address': 'Oginga Odinga Road',
+            'city': 'Kisumu',
+            'state': 'Kisumu',
+            'phone': '+254733555666',
+            'email': 'lakeview@pharmacy.ke',
+            'coordinates': (-0.1022, 34.7617)  # Kisumu coordinates
+        },
+        {
+            'name': 'Eldoret Medix',
+            'address': 'Uganda Road',
+            'city': 'Eldoret',
+            'state': 'Uasin Gishu',
+            'phone': '+254711777888',
+            'email': 'eldoret.medix@pharmacy.ke',
+            'coordinates': (0.5204, 35.2699)  # Eldoret coordinates
+        },
+        {
+            'name': 'Nakuru Care Pharmacy',
+            'address': 'Kenyatta Avenue',
+            'city': 'Nakuru',
+            'state': 'Nakuru',
+            'phone': '+254700999000',
+            'email': 'nakuru.care@pharmacy.ke',
+            'coordinates': (-0.3031, 36.0800)  # Nakuru coordinates
+        }
+    ]
+    
+    # Add sample pharmacies to the database
+    for i, pharm_data in enumerate(sample_pharmacies, 1):
+        Pharmacy.create(
+            name=pharm_data['name'],
+            address=pharm_data['address'],
+            city=pharm_data['city'],
+            state=pharm_data['state'],
+            phone=pharm_data['phone'],
+            email=pharm_data['email'],
+            coordinates=pharm_data['coordinates']
+        )
+    
+    # Initialize prescriptions collection if it doesn't exist
+    if 'prescriptions' not in db:
+        db['prescriptions'] = []
+    
+    return f"Initialized {len(sample_pharmacies)} sample pharmacies"

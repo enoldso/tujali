@@ -1,0 +1,230 @@
+{% extends "prescriptions/base.html" %}
+
+{% block page_title %}Prescription #{{ prescription.id }}{% endblock %}
+
+{% block prescription_content %}
+<div class="row">
+    <div class="col-md-8">
+        <!-- Prescription Card -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Prescription Details</h5>
+                <div>
+                    <span class="badge bg-{{ 
+                        'primary' if prescription.status == 'pending' else
+                        'success' if prescription.status == 'filled' else
+                        'info' if prescription.status == 'dispensed' else
+                        'secondary' if prescription.status == 'cancelled' else
+                        'secondary'
+                    }}">
+                        {{ prescription.status|title }}
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-1">Patient</h6>
+                        <p class="mb-0">{{ patient.name }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-1">Date Prescribed</h6>
+                        <p class="mb-0">{{ prescription.created_at.strftime('%B %d, %Y') }}</p>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <h6 class="text-muted mb-2">Medications</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Medication</th>
+                                        <th>Dosage</th>
+                                        <th>Frequency</th>
+                                        <th>Duration</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for med in prescription.medication_details %}
+                                    <tr>
+                                        <td>{{ med.name }}</td>
+                                        <td>{{ med.dosage }}</td>
+                                        <td>{{ med.frequency }}</td>
+                                        <td>{{ med.duration }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if prescription.instructions %}
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <h6 class="text-muted mb-1">Instructions</h6>
+                        <p class="mb-0">{{ prescription.instructions }}</p>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-1">Collection Method</h6>
+                        <p class="mb-0">
+                            {{ 
+                                'Local Delivery' if prescription.collection_method == 'local_delivery' else
+                                'Drone Delivery' if prescription.collection_method == 'drone_delivery' else
+                                'Pharmacy Pickup' 
+                            }}
+                        </p>
+                    </div>
+                    {% if prescription.pharmacy_id and pharmacy %}
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-1">Pharmacy</h6>
+                        <p class="mb-0">
+                            {{ pharmacy.name }}<br>
+                            <small class="text-muted">
+                                {{ pharmacy.address }}, {{ pharmacy.city }}, {{ pharmacy.state }}
+                            </small>
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('prescriptions') }}" class="btn btn-outline-secondary">
+                        <i data-feather="arrow-left" class="feather-sm me-1"></i> Back to List
+                    </a>
+                    <div class="btn-group">
+                        {% if prescription.status != 'cancelled' %}
+                            {% if prescription.status == 'pending' %}
+                                <button type="button" class="btn btn-success" 
+                                    onclick="updateStatus('{{ prescription.id }}', 'filled')">
+                                    <i data-feather="check-circle" class="feather-sm me-1"></i> Mark as Filled
+                                </button>
+                            {% elif prescription.status == 'filled' %}
+                                <button type="button" class="btn btn-info text-white" 
+                                    onclick="updateStatus('{{ prescription.id }}', 'dispensed')">
+                                    <i data-feather="truck" class="feather-sm me-1"></i> Mark as Dispensed
+                                </button>
+                            {% endif %}
+                            <button type="button" class="btn btn-danger" 
+                                onclick="if(confirm('Are you sure you want to cancel this prescription?')) updateStatus('{{ prescription.id }}', 'cancelled')">
+                                <i data-feather="x-circle" class="feather-sm me-1"></i> Cancel Prescription
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <!-- Prescriber Info -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">Prescriber Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="flex-shrink-0">
+                        <img src="{{ url_for('static', filename='img/avatar-doctor.png') }}" 
+                             class="rounded-circle" width="60" height="60" alt="Provider">
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h6 class="mb-0">Dr. {{ provider.name }}</h6>
+                        <p class="text-muted mb-0">{{ provider.specialty or 'General Practitioner' }}</p>
+                    </div>
+                </div>
+                <ul class="list-unstyled">
+                    <li class="mb-1">
+                        <i data-feather="mail" class="feather-sm text-muted me-2"></i>
+                        {{ current_user.email }}
+                    </li>
+                    {% if provider.phone %}
+                    <li class="mb-1">
+                        <i data-feather="phone" class="feather-sm text-muted me-2"></i>
+                        {{ provider.phone }}
+                    </li>
+                    {% endif %}
+                    {% if provider.license_number %}
+                    <li class="mb-1">
+                        <i data-feather="file-text" class="feather-sm text-muted me-2"></i>
+                        License #{{ provider.license_number }}
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h6 class="mb-0">Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="#" class="btn btn-outline-primary">
+                        <i data-feather="printer" class="feather-sm me-2"></i> Print Prescription
+                    </a>
+                    <a href="#" class="btn btn-outline-secondary">
+                        <i data-feather="share-2" class="feather-sm me-2"></i> Share with Patient
+                    </a>
+                    {% if prescription.pharmacy_id %}
+                    <a href="#" class="btn btn-outline-info">
+                        <i data-feather="navigation" class="feather-sm me-2"></i> Get Directions
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+function updateStatus(prescriptionId, status) {
+    const formData = new FormData();
+    formData.append('status', status);
+    
+    fetch(`/prescriptions/${prescriptionId}/update_status`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-success alert-dismissible fade show';
+            alert.role = 'alert';
+            alert.innerHTML = `
+                ${data.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            document.querySelector('.card-body').insertBefore(alert, document.querySelector('.card-body').firstChild);
+            
+            // Reload the page after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            alert(data.message || 'Failed to update status');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while updating the status');
+    });
+}
+</script>
+{% endblock %}
