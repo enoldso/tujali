@@ -45,38 +45,38 @@
                                 <div class="card-body">
                                     <div class="row g-3">
                                         <div class="col-md-4">
-                                            {{ medication.medication_name.label(class="form-label") }}
-                                            {{ medication.medication_name(class="form-control" + (' is-invalid' if medication.medication_name.errors else ''), placeholder="e.g., Amoxicillin") }}
-                                            {% if medication.medication_name.errors %}
+                                            {{ medication.form.name.label(class="form-label") }}
+                                            {{ medication.form.name(class="form-control" + (' is-invalid' if medication.form.name.errors else ''), placeholder="e.g., Amoxicillin") }}
+                                            {% if medication.form.name.errors %}
                                                 <div class="invalid-feedback">
-                                                    {{ medication.medication_name.errors[0] }}
+                                                    {{ medication.form.name.errors[0] }}
                                                 </div>
                                             {% endif %}
                                         </div>
                                         <div class="col-md-2">
-                                            {{ medication.dosage.label(class="form-label") }}
-                                            {{ medication.dosage(class="form-control" + (' is-invalid' if medication.dosage.errors else ''), placeholder="e.g., 500mg") }}
-                                            {% if medication.dosage.errors %}
+                                            {{ medication.form.dosage.label(class="form-label") }}
+                                            {{ medication.form.dosage(class="form-control" + (' is-invalid' if medication.form.dosage.errors else ''), placeholder="e.g., 500mg") }}
+                                            {% if medication.form.dosage.errors %}
                                                 <div class="invalid-feedback">
-                                                    {{ medication.dosage.errors[0] }}
+                                                    {{ medication.form.dosage.errors[0] }}
                                                 </div>
                                             {% endif %}
                                         </div>
                                         <div class="col-md-3">
-                                            {{ medication.frequency.label(class="form-label") }}
-                                            {{ medication.frequency(class="form-select" + (' is-invalid' if medication.frequency.errors else '')) }}
-                                            {% if medication.frequency.errors %}
+                                            {{ medication.form.frequency.label(class="form-label") }}
+                                            {{ medication.form.frequency(class="form-select" + (' is-invalid' if medication.form.frequency.errors else '')) }}
+                                            {% if medication.form.frequency.errors %}
                                                 <div class="invalid-feedback">
-                                                    {{ medication.frequency.errors[0] }}
+                                                    {{ medication.form.frequency.errors[0] }}
                                                 </div>
                                             {% endif %}
                                         </div>
                                         <div class="col-md-2">
-                                            {{ medication.duration.label(class="form-label") }}
-                                            {{ medication.duration(class="form-control" + (' is-invalid' if medication.duration.errors else ''), placeholder="e.g., 7 days") }}
-                                            {% if medication.duration.errors %}
+                                            {{ medication.form.duration.label(class="form-label") }}
+                                            {{ medication.form.duration(class="form-control" + (' is-invalid' if medication.form.duration.errors else ''), placeholder="e.g., 7 days") }}
+                                            {% if medication.form.duration.errors %}
                                                 <div class="invalid-feedback">
-                                                    {{ medication.duration.errors[0] }}
+                                                    {{ medication.form.duration.errors[0] }}
                                                 </div>
                                             {% endif %}
                                         </div>
@@ -185,19 +185,32 @@ document.addEventListener('DOMContentLoaded', function() {
     addButton.addEventListener('click', function() {
         const formCount = parseInt(totalForms.value);
         const newForm = document.querySelector('.medication-entry').cloneNode(true);
-        const formRegex = RegExp(`(${form.medications.prefix}|__prefix__)`, 'g');
+        const formPrefix = '{{ form.medications.prefix }}';
         
         // Update the form count
         totalForms.setAttribute('value', formCount + 1);
         
         // Update the new form with the correct index
-        newForm.innerHTML = newForm.innerHTML.replace(formRegex, formCount);
+        newForm.innerHTML = newForm.innerHTML.replace(/__prefix__/g, formCount);
         
-        // Clear the values
-        const inputs = newForm.querySelectorAll('input, select');
-        inputs.forEach(function(input) {
-            if (input.type === 'text' || input.tagName === 'SELECT' || input.type === 'hidden') {
-                input.value = '';
+        // Update field names and IDs
+        const fields = newForm.querySelectorAll('[name*="__prefix__"]');
+        fields.forEach(function(field) {
+            field.name = field.name.replace('__prefix__', formCount);
+            if (field.id) {
+                field.id = field.id.replace('__prefix__', formCount);
+            }
+            // Clear the value
+            if (field.type === 'text' || field.tagName === 'SELECT' || field.type === 'hidden') {
+                field.value = '';
+            }
+        });
+        
+        // Update labels
+        const labels = newForm.querySelectorAll('label');
+        labels.forEach(function(label) {
+            if (label.htmlFor) {
+                label.htmlFor = label.htmlFor.replace('__prefix__', formCount);
             }
         });
         
@@ -237,17 +250,27 @@ document.addEventListener('DOMContentLoaded', function() {
         
         forms.forEach(function(form, index) {
             // Update the form fields' names and IDs
-            const inputs = form.querySelectorAll('input, select, label');
+            const fields = form.querySelectorAll('[name*="-"]');
             
-            inputs.forEach(function(input) {
-                if (input.id) {
-                    input.id = input.id.replace(/\d+/, index);
+            fields.forEach(function(field) {
+                // Update name and ID for form fields
+                const nameMatch = field.name.match(/^(.*?)-(\d+)-(.*)$/);
+                if (nameMatch) {
+                    field.name = `${nameMatch[1]}-${index}-${nameMatch[3]}`;
+                    if (field.id) {
+                        field.id = `medications-${index}-${nameMatch[3]}`;
+                    }
                 }
-                if (input.name) {
-                    input.name = input.name.replace(/\d+/, index);
-                }
-                if (input.htmlFor) {
-                    input.htmlFor = input.htmlFor.replace(/\d+/, index);
+            });
+            
+            // Update labels
+            const labels = form.querySelectorAll('label');
+            labels.forEach(function(label) {
+                if (label.htmlFor) {
+                    const labelMatch = label.htmlFor.match(/^(.*?)-(\d+)-(.*)$/);
+                    if (labelMatch) {
+                        label.htmlFor = `medications-${index}-${labelMatch[3]}`;
+                    }
                 }
             });
         });

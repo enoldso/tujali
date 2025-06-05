@@ -942,33 +942,48 @@ class Payment:
         Returns:
             dict: Summary statistics
         """
-        payments = db['payments']
-        total = sum(p.amount for p in payments if p.status == 'completed')
-        pending = sum(1 for p in payments if p.status == 'pending')
-        completed = sum(1 for p in payments if p.status == 'completed')
-        failed = sum(1 for p in payments if p.status == 'failed')
+        payments = db.get('payments', [])
+        
+        # Calculate basic statistics
+        total_amount = sum(p.amount for p in payments if p.status == 'completed')
+        pending_amount = sum(p.amount for p in payments if p.status == 'pending')
+        completed_amount = total_amount  # Same as total_amount since we're only summing completed payments
+        
+        # Calculate payment method statistics
+        mpesa_payments = [p for p in payments if p.payment_method == 'mpesa']
+        cash_payments = [p for p in payments if p.payment_method == 'cash']
+        insurance_payments = [p for p in payments if p.payment_method == 'insurance']
+        
+        mpesa_amount = sum(p.amount for p in mpesa_payments)
+        mpesa_completed = sum(p.amount for p in mpesa_payments if p.status == 'completed')
+        
+        cash_amount = sum(p.amount for p in cash_payments)
+        cash_completed = sum(p.amount for p in cash_payments if p.status == 'completed')
+        
+        insurance_amount = sum(p.amount for p in insurance_payments)
+        insurance_completed = sum(p.amount for p in insurance_payments if p.status == 'completed')
         
         return {
             'total_count': len(payments),
-            'pending_count': len([p for p in payments if p.status == "pending"]),
-            'completed_count': len([p for p in payments if p.status == "completed"]),
-            'failed_count': len([p for p in payments if p.status == "failed"]),
+            'pending_count': len([p for p in payments if p.status == 'pending']),
+            'completed_count': len([p for p in payments if p.status == 'completed']),
+            'failed_count': len([p for p in payments if p.status == 'failed']),
             'total_amount': total_amount,
             'pending_amount': pending_amount,
             'completed_amount': completed_amount,
             'payment_methods': {
                 'mpesa': {
-                    'count': len([p for p in payments if p.payment_method == "mpesa"]),
+                    'count': len(mpesa_payments),
                     'amount': mpesa_amount,
                     'completed_amount': mpesa_completed
                 },
                 'cash': {
-                    'count': len([p for p in payments if p.payment_method == "cash"]),
+                    'count': len(cash_payments),
                     'amount': cash_amount,
                     'completed_amount': cash_completed
                 },
                 'insurance': {
-                    'count': len([p for p in payments if p.payment_method == "insurance"]),
+                    'count': len(insurance_payments),
                     'amount': insurance_amount,
                     'completed_amount': insurance_completed
                 }

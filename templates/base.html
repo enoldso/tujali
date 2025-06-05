@@ -49,6 +49,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.path.startswith(url_for('prescriptions')) %}active{% endif %}" href="{{ url_for('prescriptions') }}">
+                            <i data-feather="file-plus"></i> Prescriptions
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('symptom_dashboard') %}active{% endif %}" href="{{ url_for('symptom_dashboard') }}">
                             <i data-feather="activity"></i> Symptom Dashboard
                         </a>

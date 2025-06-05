@@ -889,12 +889,9 @@ def create_prescription():
         
         # Create prescription
         prescription = Prescription.create(
-            patient_id=form.patient_id.data,
             provider_id=provider.id,
+            patient_id=form.patient_id.data,
             medication_details=medications,
-            dosage="",  # Handled in medication details
-            frequency="",  # Handled in medication details
-            duration="",  # Handled in medication details
             instructions=form.instructions.data,
             collection_method=form.collection_method.data,
             pharmacy_id=form.pharmacy_id.data if form.pharmacy_id.data != 0 else None

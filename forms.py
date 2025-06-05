@@ -147,10 +147,10 @@ class PrescriptionForm(FlaskForm):
                                  for p in Patient.get_all()]
         
         # Populate pharmacy choices
-        from models import Pharmacy
+        from models import Pharmacy, db
         self.pharmacy_id.choices = [(0, 'Any Pharmacy')] + \
-                                  [(p.id, f"{p.name} - {p.location}") 
-                                   for p in db.get('pharmacies', [])]
+                                  [(p.id, f"{p.name} - {p.city}, {p.state}") 
+                                   for p in Pharmacy.get_all()]
     
     def validate(self, **kwargs):
         # Standard validation
