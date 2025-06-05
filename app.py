@@ -3,12 +3,19 @@ import logging
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, abort
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import User, Provider, Patient, Appointment, Message, HealthInfo, UserInteraction, Payment, Prescription, Pharmacy, db, init_db, init_pharmacy_data
+from dotenv import load_dotenv
+from config import config
+from extensions import db as db_ext, migrate
+# Import models after db initialization to avoid circular imports
+from models_sqlalchemy import User, Provider, Patient, Appointment, Message, Payment, Prescription, Pharmacy, HealthInfo
 from forms import LoginForm, MessageForm, HealthInfoForm, HealthTipsForm, HealthEducationForm, RegistrationForm, WalkInPatientForm, PrescriptionForm
 from ussd_handler import ussd_callback
 import utils
 import ai_service
 import mock_ai_service  # Import the mock AI service
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -16,32 +23,35 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "tujali-dev-secret-key")
+
+# Load configuration
+env = os.environ.get('FLASK_ENV', 'development')
+app.config.from_object(config[env])
+
+# Initialize extensions
+db_ext.init_app(app)
+migrate.init_app(app, db_ext)
+
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 # Add template filters
 from datetime import datetime
 @app.template_filter('now')
 def _jinja2_filter_now():
     """Return current datetime for templates"""
-    return datetime.now()
+# Initialize Login Manager (moved after app initialization)
 
-# Initialize Login Manager
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
+# Database initialization is now handled above
 
-# Initialize database and sample data
-init_db()
-init_pharmacy_data()  # Initialize sample pharmacy data
-# Double check database initialization
-init_db()
-
-# For debugging user authentication
-print("Initial users:", [f"{u.username}:{u.password_hash}" for u in db['users']])
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.get_by_id(int(user_id))
+# Debug information
+print("Application initialized")
 
 # USSD simulator route
 @app.route('/ussd_simulator.html')
@@ -162,9 +172,6 @@ def register():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Login page for healthcare providers"""
-    # Always reinitialize database to ensure admin user exists
-    init_db()
-    
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     
@@ -179,20 +186,10 @@ def login():
         user = User.get_by_username(username)
         
         if user:
-            logger.debug(f"User found: {user.username}, with hash: {user.password_hash}")
-            # Store expected hash to compare
-            expected_hash = f"hashed_{password}"
-            logger.debug(f"Expected hash would be: {expected_hash}")
+            logger.debug(f"User found: {user.username}")
             
-            # Debug check_password_hash function directly
-            valid_password = user.password_hash == expected_hash
-            logger.debug(f"Direct comparison: {valid_password}")
-            
-            # Also try the function
-            func_valid = check_password_hash(user.password_hash, password)
-            logger.debug(f"Function validity check: {func_valid}")
-            
-            if valid_password:
+            # Use the User model's check_password method
+            if user.check_password(password):
                 login_user(user)
                 flash('Login successful!', 'success')
                 return redirect(url_for('dashboard'))
@@ -857,7 +854,7 @@ def prescriptions():
     all_prescriptions = Prescription.get_by_provider(provider.id)
     
     # Get unread message count for sidebar
-    unread_count = len([m for m in db['messages'] if m.provider_id == current_user.id and not m.is_read])
+    unread_count = Message.get_unread_count(provider.id)
     
     return render_template('prescriptions/list.html', 
                          prescriptions=all_prescriptions,
