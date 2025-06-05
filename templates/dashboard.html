@@ -1,0 +1,401 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2 class="mb-4">
+            <i data-feather="home"></i> Dashboard
+            <small class="text-muted">Welcome, {{ provider.name }}</small>
+        </h2>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-muted">Total Patients</h6>
+                        <h2 class="card-title mb-0">{{ total_patients }}</h2>
+                    </div>
+                    <div class="icon-shape bg-primary text-white rounded-circle shadow-sm d-flex align-items-center justify-content-center">
+                        <i data-feather="users"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-muted">Pending Appointments</h6>
+                        <h2 class="card-title mb-0">{{ pending_appointments }}</h2>
+                    </div>
+                    <div class="icon-shape bg-warning text-white rounded-circle shadow-sm d-flex align-items-center justify-content-center">
+                        <i data-feather="calendar"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-muted">Unread Messages</h6>
+                        <h2 class="card-title mb-0">{{ unread_messages }}</h2>
+                    </div>
+                    <div class="icon-shape bg-info text-white rounded-circle shadow-sm d-flex align-items-center justify-content-center">
+                        <i data-feather="message-square"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-muted">Total Payments</h6>
+                        <h2 class="card-title mb-0">{{ payment_summary.total_amount }} KSh</h2>
+                        <p class="text-success mb-0 small">{{ payment_summary.completed_amount }} KSh completed</p>
+                    </div>
+                    <div class="icon-shape bg-success text-white rounded-circle shadow-sm d-flex align-items-center justify-content-center">
+                        <i data-feather="credit-card"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Summary Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Payment Summary</h5>
+                <a href="{{ url_for('payments') }}" class="btn btn-sm btn-outline-primary">View All Payments</a>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- M-Pesa -->
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #09ab54;">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="icon-box me-2 rounded-circle bg-light-success">
+                                        <i data-feather="smartphone" class="text-success"></i>
+                                    </div>
+                                    <h6 class="mb-0">M-Pesa</h6>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-end mt-3">
+                                    <div>
+                                        <h4 class="mb-0 text-success">{{ payment_summary.payment_methods.mpesa.amount }} KSh</h4>
+                                        <p class="text-muted mb-0 small">{{ payment_summary.payment_methods.mpesa.count }} transactions</p>
+                                    </div>
+                                    <span class="badge bg-success rounded-pill">{{ payment_summary.payment_methods.mpesa.completed_amount }} KSh</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Cash -->
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #3498db;">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="icon-box me-2 rounded-circle bg-light-primary">
+                                        <i data-feather="dollar-sign" class="text-primary"></i>
+                                    </div>
+                                    <h6 class="mb-0">Cash</h6>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-end mt-3">
+                                    <div>
+                                        <h4 class="mb-0 text-primary">{{ payment_summary.payment_methods.cash.amount }} KSh</h4>
+                                        <p class="text-muted mb-0 small">{{ payment_summary.payment_methods.cash.count }} transactions</p>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">{{ payment_summary.payment_methods.cash.completed_amount }} KSh</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Insurance -->
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #9b59b6;">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="icon-box me-2 rounded-circle bg-light-purple">
+                                        <i data-feather="shield" class="text-purple"></i>
+                                    </div>
+                                    <h6 class="mb-0">Insurance</h6>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-end mt-3">
+                                    <div>
+                                        <h4 class="mb-0" style="color: #9b59b6;">{{ payment_summary.payment_methods.insurance.amount }} KSh</h4>
+                                        <p class="text-muted mb-0 small">{{ payment_summary.payment_methods.insurance.count }} transactions</p>
+                                    </div>
+                                    <span class="badge rounded-pill" style="background-color: #9b59b6;">{{ payment_summary.payment_methods.insurance.completed_amount }} KSh</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity and Analytics -->
+<div class="row">
+    <!-- Statistics Dashboard -->
+    <div class="col-12 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="card-title">Platform Analytics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-lg-8 mb-4">
+                        <canvas id="activityChart" height="300"></canvas>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="mb-4">
+                            <canvas id="symptomDistributionChart" height="200"></canvas>
+                        </div>
+                        <div>
+                            <canvas id="regionActivityChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent text-center">
+                <a href="{{ url_for('symptom_dashboard') }}" class="btn btn-sm btn-outline-primary">View Full Analytics Dashboard</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity -->
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+                <h5 class="card-title">Recent Patients</h5>
+                <span class="badge bg-primary rounded-pill">{{ total_patients }} Total</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for patient in recent_patients %}
+                    <a href="{{ url_for('patient_detail', patient_id=patient.id) }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ patient.name }}</h6>
+                                <p class="mb-1 text-muted small">{{ patient.location }} | {{ patient.age }} years</p>
+                            </div>
+                            <span class="badge bg-light text-dark">{{ patient.created_at.strftime('%d %b') }}</span>
+                        </div>
+                    </a>
+                    {% else %}
+                    <div class="list-group-item">
+                        <p class="mb-0 text-muted">No patients registered yet.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card-footer bg-transparent text-center">
+                <a href="{{ url_for('patients') }}" class="btn btn-sm btn-outline-primary">View All Patients</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="card-title">Recent Appointments</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for appointment in recent_appointments %}
+                    <a href="{{ url_for('appointments') }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">
+                                    {% if appointment.patient %}
+                                    {{ appointment.patient.name }}
+                                    {% else %}
+                                    Unknown Patient
+                                    {% endif %}
+                                </h6>
+                                <p class="mb-1 text-muted small">{{ appointment.date }} at {{ appointment.time }}</p>
+                            </div>
+                            <span class="badge {% if appointment.status == 'pending' %}bg-warning{% elif appointment.status == 'confirmed' %}bg-success{% elif appointment.status == 'completed' %}bg-info{% else %}bg-secondary{% endif %}">
+                                {{ appointment.status }}
+                            </span>
+                        </div>
+                    </a>
+                    {% else %}
+                    <div class="list-group-item">
+                        <p class="mb-0 text-muted">No appointments scheduled yet.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card-footer bg-transparent text-center">
+                <a href="{{ url_for('appointments') }}" class="btn btn-sm btn-outline-primary">View All Appointments</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Log dashboard refresh time
+        console.log("Dashboard data refreshed at " + new Date().toLocaleTimeString());
+        
+        // Activity Chart
+        const activityCtx = document.getElementById('activityChart').getContext('2d');
+        new Chart(activityCtx, {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                datasets: [{
+                    label: 'Patient Registrations',
+                    data: [12, 19, 3, 5, 2, 3, 7, 8, 4, 6, 5, 3],
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }, {
+                    label: 'Appointments',
+                    data: [7, 11, 5, 8, 3, 7, 9, 11, 7, 9, 8, 5],
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }, {
+                    label: 'Messages',
+                    data: [3, 8, 12, 4, 6, 8, 12, 14, 9, 10, 11, 7],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(200, 200, 200, 0.1)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(200, 200, 200, 0.1)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Platform Activity Trends'
+                    }
+                }
+            }
+        });
+        
+        // Symptom Distribution Chart
+        const symptomCtx = document.getElementById('symptomDistributionChart').getContext('2d');
+        new Chart(symptomCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Respiratory', 'Digestive', 'Pain', 'Fever', 'Skin', 'Other'],
+                datasets: [{
+                    data: [35, 20, 15, 10, 10, 10],
+                    backgroundColor: [
+                        '#4dc9f6',
+                        '#f67019',
+                        '#f53794',
+                        '#537bc4',
+                        '#acc236',
+                        '#166a8f'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Symptom Categories'
+                    }
+                }
+            }
+        });
+        
+        // Region Activity Chart
+        const regionCtx = document.getElementById('regionActivityChart').getContext('2d');
+        new Chart(regionCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Other'],
+                datasets: [{
+                    data: [40, 20, 15, 10, 5, 10],
+                    backgroundColor: [
+                        '#537bc4',
+                        '#f67019',
+                        '#acc236',
+                        '#166a8f',
+                        '#f53794',
+                        '#4dc9f6'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Patient Distribution'
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

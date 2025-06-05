@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}User Journey Tracker{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Patient Journey Tracker</h1>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <p class="lead">
+                Track and visualize patient interactions with the Tujali Telehealth system.
+                Select a patient to view their detailed journey and analyze their engagement patterns.
+            </p>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">Patient List</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Phone Number</th>
+                            <th>Age/Gender</th>
+                            <th>Location</th>
+                            <th>Interactions</th>
+                            <th>Registered</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for patient in patients %}
+                        <tr>
+                            <td>{{ patient.name }}</td>
+                            <td>{{ patient.phone_number }}</td>
+                            <td>{{ patient.age }} / {{ patient.gender }}</td>
+                            <td>{{ patient.location }}</td>
+                            <td>
+                                <span class="badge rounded-pill bg-{{ 'primary' if patient.interaction_count > 0 else 'secondary' }}">
+                                    {{ patient.interaction_count }}
+                                </span>
+                            </td>
+                            <td>{{ patient.created_at.strftime('%d %b %Y') }}</td>
+                            <td>
+                                <a href="{{ url_for('user_journey_detail', patient_id=patient.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-graph-up"></i> View Journey
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4">No patients found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

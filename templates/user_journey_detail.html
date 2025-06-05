@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Journey: {{ patient.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .journey-timeline {
+        position: relative;
+        padding: 20px 0;
+    }
+    
+    .journey-timeline::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: var(--bs-primary);
+        left: 31px;
+        margin-left: -2px;
+        opacity: 0.2;
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-left: 60px;
+        margin-bottom: 25px;
+    }
+    
+    .timeline-icon {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 30px;
+        color: white;
+    }
+    
+    .timeline-card {
+        border-left: 4px solid var(--bs-primary);
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .timeline-card:hover {
+        transform: translateX(5px);
+    }
+    
+    .interaction-count {
+        font-size: 3rem;
+        font-weight: bold;
+        color: var(--bs-primary);
+    }
+    
+    .journey-stat-card {
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .journey-stat-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .type-ussd { border-color: var(--bs-primary); }
+    .type-appointment { border-color: var(--bs-success); }
+    .type-message { border-color: var(--bs-info); }
+    .type-symptom { border-color: var(--bs-warning); }
+    .type-health_tip { border-color: var(--bs-danger); }
+    
+    .icon-ussd { background-color: var(--bs-primary); }
+    .icon-appointment { background-color: var(--bs-success); }
+    .icon-message { background-color: var(--bs-info); }
+    .icon-symptom { background-color: var(--bs-warning); }
+    .icon-health_tip { background-color: var(--bs-danger); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="{{ url_for('user_journey_list') }}" class="btn btn-sm btn-outline-secondary mb-2">
+                <i class="bi bi-arrow-left"></i> Back to Patient List
+            </a>
+            <h1 class="h3">Patient Journey: {{ patient.name }}</h1>
+        </div>
+        <div>
+            <a href="{{ url_for('patient_detail', patient_id=patient.id) }}" class="btn btn-outline-primary">
+                <i class="bi bi-person"></i> Patient Profile
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Patient Info -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">Patient Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="avatar-placeholder bg-primary text-white rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                {{ patient.name[:1] }}
+                            </div>
+                            <h5 class="mb-0">{{ patient.name }}</h5>
+                        </div>
+                        <p class="text-muted mb-0">{{ patient.phone_number }}</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Age / Gender</small>
+                        <span>{{ patient.age }} / {{ patient.gender }}</span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Location</small>
+                        <span>{{ patient.location }}</span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Preferred Language</small>
+                        <span>{{ patient.language }}</span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Registration Date</small>
+                        <span>{{ journey_data.patient.registration_date }}</span>
+                    </div>
+                    
+                    <div>
+                        <small class="text-muted d-block">Days Since Registration</small>
+                        <span>{{ journey_data.patient.days_since_registration }} days</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Journey Statistics -->
+        <div class="col-md-8 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">Journey Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-4 text-center mb-3 mb-md-0">
+                            <div class="card border-0 journey-stat-card">
+                                <div class="card-body">
+                                    <span class="interaction-count">{{ journey_data.statistics.total_interactions }}</span>
+                                    <p class="text-muted">Total Interactions</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4 text-center mb-3 mb-md-0">
+                            <div class="card border-0 journey-stat-card">
+                                <div class="card-body">
+                                    <span class="interaction-count">{{ journey_data.statistics.avg_interactions_per_month }}</span>
+                                    <p class="text-muted">Avg. per Month</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4 text-center">
+                            <div class="card border-0 journey-stat-card">
+                                <div class="card-body">
+                                    <span class="interaction-count">
+                                        {% if journey_data.interactions.symptoms %}
+                                            {{ journey_data.interactions.symptoms|length }}
+                                        {% else %}
+                                            0
+                                        {% endif %}
+                                    </span>
+                                    <p class="text-muted">Symptoms Reported</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mb-3">Interactions by Type</h6>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Interaction Type</th>
+                                        <th class="text-end">Count</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-primary me-2">USSD</span>
+                                            USSD Sessions
+                                        </td>
+                                        <td class="text-end">
+                                            {% if journey_data.statistics.interaction_by_type.ussd %}
+                                                {{ journey_data.statistics.interaction_by_type.ussd }}
+                                            {% else %}
+                                                0
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-success me-2">APPT</span>
+                                            Appointments
+                                        </td>
+                                        <td class="text-end">
+                                            {% if journey_data.statistics.interaction_by_type.appointment %}
+                                                {{ journey_data.statistics.interaction_by_type.appointment }}
+                                            {% else %}
+                                                0
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-info me-2">MSG</span>
+                                            Messages
+                                        </td>
+                                        <td class="text-end">
+                                            {% if journey_data.statistics.interaction_by_type.message %}
+                                                {{ journey_data.statistics.interaction_by_type.message }}
+                                            {% else %}
+                                                0
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-warning me-2">SYMP</span>
+                                            Symptoms
+                                        </td>
+                                        <td class="text-end">
+                                            {% if journey_data.statistics.interaction_by_type.symptom %}
+                                                {{ journey_data.statistics.interaction_by_type.symptom }}
+                                            {% else %}
+                                                0
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-danger me-2">TIPS</span>
+                                            Health Tips
+                                        </td>
+                                        <td class="text-end">
+                                            {% if journey_data.statistics.interaction_by_type.health_tip %}
+                                                {{ journey_data.statistics.interaction_by_type.health_tip }}
+                                            {% else %}
+                                                0
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Journey Timeline -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">Journey Timeline</h5>
+        </div>
+        <div class="card-body">
+            <div class="journey-timeline">
+                {% if journey_data.timeline %}
+                    {% for item in journey_data.timeline %}
+                        <div class="timeline-item">
+                            <div class="timeline-icon icon-{{ item.type }}">
+                                {% if item.type == 'ussd' %}
+                                    <i class="bi bi-phone"></i>
+                                {% elif item.type == 'appointment' %}
+                                    <i class="bi bi-calendar-check"></i>
+                                {% elif item.type == 'message' %}
+                                    <i class="bi bi-chat-dots"></i>
+                                {% elif item.type == 'symptom' %}
+                                    <i class="bi bi-activity"></i>
+                                {% elif item.type == 'health_tip' %}
+                                    <i class="bi bi-heart-pulse"></i>
+                                {% else %}
+                                    <i class="bi bi-asterisk"></i>
+                                {% endif %}
+                            </div>
+                            <div class="card timeline-card type-{{ item.type }}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="mb-0">
+                                            {% if item.type == 'ussd' %}
+                                                <span class="badge bg-primary me-2">USSD</span>
+                                            {% elif item.type == 'appointment' %}
+                                                <span class="badge bg-success me-2">APPOINTMENT</span>
+                                            {% elif item.type == 'message' %}
+                                                <span class="badge bg-info me-2">MESSAGE</span>
+                                            {% elif item.type == 'symptom' %}
+                                                <span class="badge bg-warning me-2">SYMPTOM</span>
+                                            {% elif item.type == 'health_tip' %}
+                                                <span class="badge bg-danger me-2">HEALTH TIP</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary me-2">OTHER</span>
+                                            {% endif %}
+                                            {{ item.description }}
+                                        </h6>
+                                        <small class="text-muted">{{ item.date }} {{ item.time }}</small>
+                                    </div>
+                                    
+                                    {% if item.metadata %}
+                                        <div class="mt-2">
+                                            <small class="text-muted">Additional Information:</small>
+                                            <div class="mt-1">
+                                                {% for key, value in item.metadata.items() %}
+                                                    <div><strong>{{ key }}</strong>: {{ value }}</div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <div class="mb-3">
+                            <i class="bi bi-graph-up" style="font-size: 3rem; opacity: 0.2;"></i>
+                        </div>
+                        <h5 class="text-muted">No journey data available yet</h5>
+                        <p class="text-muted">As the patient interacts with the system, their journey will be tracked here.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Visualization Script -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add journey visualization here if needed
+    });
+</script>
+{% endblock %}

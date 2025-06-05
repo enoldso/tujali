@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Health Education Content{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h2 class="mb-0">
+            <i data-feather="book-open" class="feather-lg me-2"></i>
+            Health Education Content
+        </h2>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-dark bg-opacity-75">
+                    <h5 class="card-title mb-0">Generate Content</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{{ url_for('health_education') }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="mb-3">
+                            {{ form.topic.label(class="form-label") }}
+                            {{ form.topic(class="form-control", placeholder="e.g., Malaria Prevention") }}
+                            {% if form.topic.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.topic.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.language.label(class="form-label") }}
+                            {{ form.language(class="form-select") }}
+                            {% if form.language.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.language.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="d-grid">
+                            {{ form.submit(class="btn btn-primary") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-header bg-dark bg-opacity-75">
+                    <h5 class="card-title mb-0">How It Works</h5>
+                </div>
+                <div class="card-body">
+                    <ol class="ps-3">
+                        <li class="mb-2">Enter a health topic</li>
+                        <li class="mb-2">Select the language for the content</li>
+                        <li class="mb-2">AI generates educational material</li>
+                        <li>Share with patients or use for outreach</li>
+                    </ol>
+                    <p class="small text-muted mt-3">
+                        This tool uses AI to create culturally appropriate health education content tailored to African contexts. Content is optimized for clarity and accessibility.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            {% if content %}
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-dark bg-opacity-75 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ content.title }}</h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-light" onclick="window.print()">
+                                <i data-feather="printer" class="feather-sm"></i>
+                                Print
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <h6 class="text-secondary">Overview</h6>
+                            <p>{{ content.overview }}</p>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h6 class="text-secondary">Key Points</h6>
+                            <ul>
+                                {% for point in content.key_points %}
+                                    <li class="mb-2">{{ point }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h6 class="text-secondary">Prevention</h6>
+                            <ul>
+                                {% for tip in content.prevention %}
+                                    <li class="mb-2">{{ tip }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        
+                        <div>
+                            <h6 class="text-secondary">When to Seek Medical Help</h6>
+                            <p>{{ content.when_to_seek_help }}</p>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-dark text-muted d-flex align-items-center">
+                        <small>
+                            <i data-feather="clock" class="feather-sm me-1"></i>
+                            Generated now
+                        </small>
+                    </div>
+                </div>
+            {% else %}
+                <div class="card border-0 shadow-sm mb-4 text-center">
+                    <div class="card-body py-5">
+                        <div class="mb-3">
+                            <i data-feather="book" style="width: 64px; height: 64px;" class="text-muted"></i>
+                        </div>
+                        <h5>Create Health Education Content</h5>
+                        <p class="text-muted">
+                            Generate educational content on various health topics to share with patients through SMS or during consultations.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-dark bg-opacity-75">
+                        <h5 class="card-title mb-0">Popular Health Topics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center p-3 border rounded shadow-sm">
+                                    <div class="flex-shrink-0 me-3 text-primary">
+                                        <i data-feather="droplet" style="width: 32px; height: 32px;"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">Malaria Prevention</h6>
+                                        <small class="text-muted">Includes mosquito nets and symptoms</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center p-3 border rounded shadow-sm">
+                                    <div class="flex-shrink-0 me-3 text-primary">
+                                        <i data-feather="heart" style="width: 32px; height: 32px;"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">Hypertension</h6>
+                                        <small class="text-muted">Blood pressure management</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center p-3 border rounded shadow-sm">
+                                    <div class="flex-shrink-0 me-3 text-primary">
+                                        <i data-feather="life-buoy" style="width: 32px; height: 32px;"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">Maternal Health</h6>
+                                        <small class="text-muted">Pregnancy and childcare</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center p-3 border rounded shadow-sm">
+                                    <div class="flex-shrink-0 me-3 text-primary">
+                                        <i data-feather="shield" style="width: 32px; height: 32px;"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">Immunization</h6>
+                                        <small class="text-muted">Childhood vaccination schedules</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize loading animation
+        const loadingManager = new LoadingAnimationManager();
+        
+        // Form submit loading
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function() {
+                loadingManager.showLoading('ndebele', 'Generating health education content...');
+            });
+        }
+    });
+</script>
+{% endblock %}
