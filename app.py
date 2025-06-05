@@ -222,55 +222,44 @@ def add_walkin():
     if form.validate_on_submit():
         try:
             # Create new patient
-            patient_id = len(db['patients']) + 1
             patient = Patient(
-                id=patient_id,
                 name=form.name.data,
-                phone=form.phone.data,
+                phone_number=form.phone.data,  # Changed from phone to phone_number to match model
                 age=form.age.data,
                 gender=form.gender.data,
-                provider_id=provider.id,
-                is_walk_in=True
+                # Removed provider_id as it's not in the Patient model
+                # is_walk_in is not in the model, so we'll store it in notes
             )
-            db['patients'].append(patient)
-            
-            # Create initial health info with chief complaint
-            health_info_id = len(db['health_info']) + 1
-            health_info = HealthInfo(
-                id=health_info_id,
-                patient_id=patient_id,
-                title='Initial Visit - Chief Complaint',
-                content=form.chief_complaint.data,
-                language='en'  # Default to English
-            )
-            db['health_info'].append(health_info)
+            db_ext.session.add(patient)
+            db_ext.session.flush()  # To get the patient.id
             
             # Create a new appointment for the walk-in
-            appointment_id = len(db['appointments']) + 1
-            from datetime import datetime, timedelta
+            from datetime import datetime
             appointment = Appointment(
-                id=appointment_id,
-                patient_id=patient_id,
+                patient_id=patient.id,
                 provider_id=provider.id,
-                date=datetime.now().strftime('%Y-%m-%d'),
-                time=datetime.now().strftime('%H:%M'),
+                date=datetime.now().date(),
+                time=datetime.now().time(),
                 status='completed',  # Mark as completed since it's a walk-in
                 notes=f'Walk-in patient. Chief complaint: {form.chief_complaint.data}'
             )
-            db['appointments'].append(appointment)
+            db_ext.session.add(appointment)
+            
+            # Commit all changes
+            db_ext.session.commit()
             
             flash(f'Walk-in patient {patient.name} added successfully!', 'success')
-            logger.info(f'New walk-in patient added: {patient.name} (ID: {patient_id})')
-            return redirect(url_for('patient_detail', patient_id=patient_id))
+            logger.info(f'New walk-in patient added: {patient.name} (ID: {patient.id})')
+            return redirect(url_for('patient_detail', patient_id=patient.id))
             
         except Exception as e:
+            db_ext.session.rollback()
             logger.error(f'Error adding walk-in patient: {str(e)}')
             logger.exception('Error details:')
             flash('An error occurred while adding the walk-in patient. Please try again.', 'danger')
     
     # Get unread message count for the sidebar
-    unread_count = len([m for m in db['messages'] 
-                      if m.provider_id == current_user.id and not m.is_read])
+    unread_count = Message.get_unread_count(provider.id)
     
     return render_template('add_walkin.html', 
                          form=form, 

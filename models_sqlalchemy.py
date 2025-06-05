@@ -206,6 +206,13 @@ class Appointment(db.Model):
     def get_by_provider(cls, provider_id):
         """Get all appointments for a provider"""
         return cls.query.filter_by(provider_id=provider_id).all()
+        
+    @classmethod
+    def get_by_patient(cls, patient_id):
+        """Get all appointments for a patient, ordered by most recent first"""
+        return cls.query.filter_by(patient_id=patient_id)\
+                       .order_by(cls.date.desc(), cls.time.desc())\
+                       .all()
 
 class Prescription(db.Model):
     __tablename__ = 'prescriptions'
@@ -355,6 +362,14 @@ class Message(db.Model):
                        .order_by(cls.created_at.desc())\
                        .limit(limit).all()
                        
+    @classmethod
+    def get_conversation(cls, provider_id, patient_id):
+        """Get conversation between a provider and a specific patient"""
+        return cls.query.filter(
+            ((cls.provider_id == provider_id) & (cls.patient_id == patient_id)) |
+            ((cls.provider_id == provider_id) & (cls.patient_id == patient_id))
+        ).order_by(cls.created_at.asc()).all()
+        
     @classmethod
     def get_conversations(cls, provider_id):
         """Get all conversations for a provider with latest message and unread count"""
