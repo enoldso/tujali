@@ -124,23 +124,36 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Location chart
     const locationCtx = document.getElementById('locationChart').getContext('2d');
+    const locationData = {
+        labels: Object.keys({{ patient_stats.locations|tojson|safe }}),
+        datasets: [{
+            data: Object.values({{ patient_stats.locations|tojson|safe }}),
+            backgroundColor: [
+                '#6610f2', '#fd7e14', '#20c997', '#e83e8c', '#6c757d', '#0dcaf0', '#198754', '#ffc107'
+            ],
+            borderWidth: 1
+        }]
+    };
+    
     new Chart(locationCtx, {
         type: 'pie',
-        data: {
-            labels: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Other'],
-            datasets: [{
-                data: [5, 3, 2, 1, 2],
-                backgroundColor: [
-                    '#6610f2', '#fd7e14', '#20c997', '#e83e8c', '#6c757d'
-                ],
-                borderWidth: 1
-            }]
-        },
+        data: locationData,
         options: {
             responsive: true,
             plugins: {
                 legend: {
                     position: 'right',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = Math.round((value / total) * 100);
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
                 }
             }
         }
@@ -148,29 +161,80 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Age chart
     const ageCtx = document.getElementById('ageChart').getContext('2d');
+    const ageData = {
+        labels: Object.keys({{ patient_stats.age_groups|tojson|safe }}),
+        datasets: [{
+            label: 'Patients by Age Group',
+            data: Object.values({{ patient_stats.age_groups|tojson|safe }}),
+            backgroundColor: '#0d6efd',
+            borderWidth: 1
+        }]
+    };
+    
     new Chart(ageCtx, {
         type: 'bar',
-        data: {
-            labels: ['0-18', '19-30', '31-45', '46-60', '61+'],
-            datasets: [{
-                label: 'Patients by Age Group',
-                data: [3, 5, 4, 2, 1],
-                backgroundColor: '#0d6efd',
-                borderWidth: 1
-            }]
-        },
+        data: ageData,
         options: {
             responsive: true,
             scales: {
                 y: {
                     beginAtZero: true,
                     ticks: {
-                        stepSize: 1
+                        stepSize: 1,
+                        precision: 0
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.parsed.y} patients`;
+                        }
                     }
                 }
             }
         }
     });
+    
+    // Add gender distribution chart if the container exists
+    const genderCtx = document.getElementById('genderChart');
+    if (genderCtx) {
+        const genderData = {
+            labels: Object.keys({{ patient_stats.gender_distribution|tojson|safe }}).map(g => g || 'Not Specified'),
+            datasets: [{
+                data: Object.values({{ patient_stats.gender_distribution|tojson|safe }}),
+                backgroundColor: [
+                    '#0d6efd', '#6f42c1', '#20c997', '#fd7e14', '#dc3545'
+                ],
+                borderWidth: 1
+            }]
+        };
+        
+        new Chart(genderCtx, {
+            type: 'doughnut',
+            data: genderData,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.raw || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = Math.round((value / total) * 100);
+                                return `${label}: ${value} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

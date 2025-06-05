@@ -298,10 +298,17 @@ def dashboard():
 @app.route('/patients')
 @login_required
 def patients():
-    """List all patients"""
+    """List all patients with statistics"""
     provider = Provider.get_by_user_id(current_user.id)
     patients_list = Patient.get_all()
-    return render_template('patients.html', provider=provider, patients=patients_list)
+    
+    # Get patient statistics for charts
+    patient_stats = Patient.get_patient_statistics()
+    
+    return render_template('patients.html', 
+                         provider=provider, 
+                         patients=patients_list,
+                         patient_stats=patient_stats)
 
 @app.route('/patients/<int:patient_id>')
 @login_required
@@ -405,116 +412,186 @@ def health_info():
         flash('All fields are required.', 'warning')
     
     info_list = HealthInfo.get_all()
-    return render_template('health_info.html', provider=provider, info_list=info_list, form=form)
+    return render_template('health_info.html', form=form, info_list=info_list, provider=provider)
 
 @app.route('/symptom-dashboard')
 @login_required
 def symptom_dashboard():
-    """Interactive Health Symptom Visualization Dashboard"""
+    """Interactive Health Symptom Visualization Dashboard with Enhanced Tracking"""
     provider = Provider.get_by_user_id(current_user.id)
-    
-    # Get all patients
     patients = Patient.get_all()
     
-    # Collect symptom data for visualization
-    symptom_data = []
+    # Enhanced symptom categories with more specific keywords and metadata
     symptom_categories = {
-        'respiratory': ['cough', 'breathing', 'chest', 'breath', 'respiratory', 'pneumonia'],
-        'digestive': ['stomach', 'diarrhea', 'nausea', 'vomit', 'digest', 'abdominal'],
-        'pain': ['pain', 'ache', 'hurt', 'sore', 'headache', 'migraine'],
-        'fever': ['fever', 'temperature', 'hot', 'chills', 'cold', 'sweat'],
-        'skin': ['rash', 'itching', 'skin', 'lesion', 'bump', 'sore'],
-        'other': []
+        'respiratory': {
+            'keywords': ['cough', 'breath', 'wheeze', 'sneeze', 'congest', 'phlegm', 'mucus', 
+                        'nasal', 'runny nose', 'stuffy nose', 'shortness of breath', 'sob',
+                        'difficulty breathing', 'chest tightness', 'wheezing', 'sore throat',
+                        'throat pain', 'hoarse', 'laryngitis', 'pneumonia', 'bronchitis'],
+            'color': '#0d6efd',
+            'icon': 'wind'
+        },
+        'fever': {
+            'keywords': ['fever', 'temperature', 'chills', 'sweat', 'hot', 'warm', 'high temp',
+                        'feverish', 'running a temperature', 'pyrexia', 'high fever', 'low-grade fever'],
+            'color': '#dc3545',
+            'icon': 'thermometer'
+        },
+        'gastrointestinal': {
+            'keywords': ['nausea', 'vomit', 'diarrhea', 'constipat', 'stomach', 'belly', 'abdomen',
+                        'indigestion', 'heartburn', 'bloat', 'cramp', 'upset stomach', 'stomachache',
+                        'stomach pain', 'abdominal pain', 'diarrhoea', 'loose stool', 'vomiting'],
+            'color': '#198754',
+            'icon': 'activity'
+        },
+        'pain': {
+            'keywords': ['headache', 'migraine', 'pain', 'ache', 'sore', 'hurt', 'throb', 'sting', 
+                        'cramp', 'spasm', 'tender', 'tenderness', 'body ache', 'muscle pain',
+                        'joint pain', 'back pain', 'neck pain', 'earache', 'toothache'],
+            'color': '#fd7e14',
+            'icon': 'alert-triangle'
+        },
+        'fatigue': {
+            'keywords': ['tire', 'exhaust', 'fatigue', 'weak', 'letharg', 'drain', 'run down',
+                        'low energy', 'weary', 'sleepy', 'drowsy', 'lack of energy'],
+            'color': '#6f42c1',
+            'icon': 'moon'
+        },
+        'neurological': {
+            'keywords': ['dizzy', 'lightheaded', 'faint', 'numb', 'tingl', 'seizure', 'confus', 
+                        'memory loss', 'forget', 'head spin', 'vertigo', 'vision problem',
+                        'blurred vision', 'double vision', 'loss of balance', 'coordination'],
+            'color': '#20c997',
+            'icon': 'alert-circle'
+        },
+        'skin': {
+            'keywords': ['rash', 'itch', 'hive', 'bump', 'lesion', 'sore', 'blister', 'dry skin',
+                        'peeling', 'redness', 'swelling', 'inflammation', 'skin irritation',
+                        'hives', 'urticaria', 'dermatitis', 'eczema'],
+            'color': '#ffc107',
+            'icon': 'layers'
+        }
     }
-    
+
+    # Initialize data structures
+    symptom_data = []
     location_data = {}
-    severity_data = {'Mild': 0, 'Moderate': 0, 'Severe': 0}
+    severity_data = {'Mild': 0, 'Moderate': 0, 'Severe': 0, 'Unknown': 0}
+    category_counts = {cat: 0 for cat in symptom_categories}
+    category_counts['other'] = 0
     
-    # Process patient symptom data for visualization
+    # Track symptoms for outbreak detection
+    from collections import defaultdict
+    from datetime import datetime, timedelta
+    recent_symptoms = defaultdict(lambda: {'count': 0, 'dates': set()})
+    one_week_ago = datetime.utcnow() - timedelta(days=7)
+
     for patient in patients:
         if not hasattr(patient, 'symptoms') or not patient.symptoms:
             continue
             
         for symptom_entry in patient.symptoms:
-            symptom_text = symptom_entry['text'].lower()
-            symptom_date = symptom_entry['date']
+            symptom_text = symptom_entry.get('text', '').lower()
+            symptom_date = symptom_entry.get('date', datetime.utcnow())
             
-            # Determine symptom category
+            if not symptom_text:
+                continue
+                
+            # Determine symptom category and confidence
             category = 'other'
-            for cat, keywords in symptom_categories.items():
-                if any(keyword in symptom_text for keyword in keywords):
-                    category = cat
-                    break
+            confidence = 0
+            matched_keywords = []
             
-            # Determine severity (if mentioned in text or if available)
+            for cat, data in symptom_categories.items():
+                for keyword in data['keywords']:
+                    if keyword in symptom_text:
+                        category = cat
+                        confidence += 1
+                        matched_keywords.append(keyword)
+                        break  # Count each category only once per keyword match
+            
+            # Normalize confidence score (0.0 to 1.0)
+            confidence = min(1.0, confidence / 3)
+            
+            # Determine severity
             severity = 'Unknown'
-            if 'severe' in symptom_text or 'unbearable' in symptom_text:
+            if any(word in symptom_text for word in ['severe', 'unbearable', 'extreme']):
                 severity = 'Severe'
-                severity_data['Severe'] += 1
-            elif 'mild' in symptom_text or 'slight' in symptom_text:
-                severity = 'Mild'
-                severity_data['Mild'] += 1
-            elif 'moderate' in symptom_text:
+            elif any(word in symptom_text for word in ['moderate', 'medium', 'manageable']):
                 severity = 'Moderate'
-                severity_data['Moderate'] += 1
+            elif any(word in symptom_text for word in ['mild', 'slight', 'minor']):
+                severity = 'Mild'
+                
+            severity_data[severity] = severity_data.get(severity, 0) + 1
+            category_counts[category] = category_counts.get(category, 0) + 1
+            
+            # Track for outbreak detection
+            symptom_key = f"{category}:{symptom_text.split()[0]}"  # First word as key
+            recent_symptoms[symptom_key]['count'] += 1
+            recent_symptoms[symptom_key]['dates'].add(symptom_date.date())
             
             # Add to symptom data
             symptom_data.append({
                 'patient_id': patient.id,
                 'patient_name': patient.name,
                 'symptom': symptom_text,
+                'normalized_name': symptom_text.split()[0],  # First word as normalized name
                 'category': category,
+                'confidence': confidence,
                 'severity': severity,
                 'date': symptom_date,
-                'location': patient.location
+                'location': patient.location or 'Unknown',
+                'matched_keywords': matched_keywords
             })
             
-            # Add to location data
-            if patient.location not in location_data:
-                location_data[patient.location] = 0
-            location_data[patient.location] += 1
+            # Update location data
+            location = patient.location or 'Unknown'
+            location_data[location] = location_data.get(location, 0) + 1
+    
+    # Detect potential outbreaks (symptoms with high frequency in last 7 days)
+    outbreak_signals = []
+    for symptom_key, data in recent_symptoms.items():
+        if not data['dates']:
+            continue
+            
+        days_span = (max(data['dates']) - min(data['dates'])).days + 1
+        if days_span <= 7 and data['count'] >= 3:  # At least 3 cases in 7 days
+            category, symptom = symptom_key.split(':', 1)
+            outbreak_signals.append({
+                'symptom': symptom,
+                'category': category,
+                'count': data['count'],
+                'first_seen': min(data['dates']),
+                'last_seen': max(data['dates']),
+                'severity': 'High' if data['count'] > 5 else 'Medium'
+            })
+    
+    # Sort outbreak signals by count (highest first) and then by most recent
+    outbreak_signals.sort(key=lambda x: (-x['count'], x['last_seen']))
     
     # Sort locations by frequency
-    sorted_locations = dict(sorted(location_data.items(), key=lambda item: item[1], reverse=True))
+    sorted_locations = dict(sorted(location_data.items(), 
+                                 key=lambda item: item[1], 
+                                 reverse=True))
     
-    # Calculate sum of counts for locations beyond the top 5
-    other_locations_count = 0
-    if len(sorted_locations) > 5:
-        other_locations_count = sum(list(sorted_locations.values())[5:])
-    
-    # Prepare data for time-based visualization
+    # Prepare time-based data
     time_data = {}
     for entry in symptom_data:
         date_str = entry['date'].strftime('%Y-%m-%d')
-        if date_str not in time_data:
-            time_data[date_str] = 0
-        time_data[date_str] += 1
+        time_data[date_str] = time_data.get(date_str, 0) + 1
     
     # Sort time data chronologically
     sorted_time_data = dict(sorted(time_data.items()))
     
-    # Count symptoms by category
-    category_counts = {}
+    # Get top 5 symptoms by frequency
+    symptom_freq = {}
     for entry in symptom_data:
-        category = entry['category']
-        if category not in category_counts:
-            category_counts[category] = 0
-        category_counts[category] += 1
+        symptom = entry['symptom'].lower()
+        symptom_freq[symptom] = symptom_freq.get(symptom, 0) + 1
     
-    return render_template('symptom_dashboard.html', 
-                          provider=provider,
-                          symptom_data=symptom_data,
-                          location_data=sorted_locations,
-                          severity_data=severity_data,
-                          time_data=sorted_time_data,
-                          category_counts=category_counts,
-                          other_locations_count=other_locations_count,
-                          patients=patients)
-
-@app.route('/health-tips', methods=['GET', 'POST'])
-@login_required
-def health_tips():
-    """AI-Powered Personalized Health Tips"""
+    top_symptoms = dict(sorted(symptom_freq.items(), 
+                              key=lambda x: x[1], 
+                              reverse=True)[:5])
     provider = Provider.get_by_user_id(current_user.id)
     
     # Get all patients for the dropdown
@@ -607,11 +684,21 @@ def health_tips():
             logger.error(f"Error generating health tips: {str(e)}")
             flash(f'Error generating health tips: {str(e)}', 'danger')
     
-    return render_template('health_tips.html', 
-                          provider=provider,
-                          form=form,
-                          generated_tips=generated_tips,
-                          selected_patient=selected_patient)
+    # Prepare data for the symptom dashboard
+    return render_template('symptom_dashboard.html',
+                         provider=provider,
+                         patients=patients,
+                         symptom_data=symptom_data,
+                         category_counts=category_counts,
+                         severity_data=severity_data,
+                         location_data=sorted_locations,
+                         time_data=sorted_time_data,
+                         top_symptoms=top_symptoms,
+                         outbreak_signals=outbreak_signals,
+                         total_symptoms=len(symptom_data),
+                         unique_symptoms=list(set([s['symptom'] for s in symptom_data])),
+                         avg_severity=sum(s.get('severity_level', 0) for s in symptom_data) / len(symptom_data) if symptom_data else 0,
+                         top_location=(max(location_data.items(), key=lambda x: x[1]) if location_data else ('None', 0)))
 
 @app.route('/health-tips/share/<int:patient_id>', methods=['POST'])
 @login_required

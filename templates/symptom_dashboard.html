@@ -10,13 +10,18 @@
   .symptom-card:hover {
     transform: translateY(-5px);
   }
+  
+  /* Category colors */
   .category-respiratory { border-left: 4px solid #0d6efd; }
-  .category-digestive { border-left: 4px solid #fd7e14; }
-  .category-pain { border-left: 4px solid #dc3545; }
-  .category-fever { border-left: 4px solid #ffc107; }
-  .category-skin { border-left: 4px solid #20c997; }
+  .category-fever { border-left: 4px solid #dc3545; }
+  .category-gastrointestinal { border-left: 4px solid #198754; }
+  .category-pain { border-left: 4px solid #fd7e14; }
+  .category-fatigue { border-left: 4px solid #6f42c1; }
+  .category-neurological { border-left: 4px solid #20c997; }
+  .category-skin { border-left: 4px solid #ffc107; }
   .category-other { border-left: 4px solid #6c757d; }
   
+  /* Severity indicators */
   .severity-Mild { border-top: 3px solid #20c997; }
   .severity-Moderate { border-top: 3px solid #fd7e14; }
   .severity-Severe { border-top: 3px solid #dc3545; }
@@ -44,6 +49,28 @@
     border-radius: 10px;
     overflow: hidden;
   }
+  
+  /* Outbreak alert styles */
+  .outbreak-alert {
+    border-left: 4px solid #ffc107;
+    transition: all 0.3s ease;
+  }
+  .outbreak-alert.high {
+    border-left-color: #dc3545;
+  }
+  .outbreak-alert:hover {
+    transform: translateX(5px);
+  }
+  
+  /* Badge styles */
+  .badge-outbreak-high {
+    background-color: #dc3545;
+    color: white;
+  }
+  .badge-outbreak-medium {
+    background-color: #ffc107;
+    color: #000;
+  }
 </style>
 {% endblock %}
 
@@ -56,6 +83,48 @@
     </h2>
   </div>
 </div>
+
+<!-- Outbreak Alerts Section -->
+{% if outbreak_signals %}
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card border-warning">
+      <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i data-feather="alert-triangle" class="text-warning me-2"></i> Potential Outbreak Detected</h5>
+        <span class="badge bg-warning text-dark">{{ outbreak_signals|length }} alert(s)</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+          {% for signal in outbreak_signals %}
+          <div class="list-group-item outbreak-alert {{ 'high' if signal.severity == 'High' else '' }}">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h6 class="mb-1">
+                  {{ signal.symptom|title }} 
+                  <span class="badge bg-{{ 'danger' if signal.severity == 'High' else 'warning' }}">
+                    {{ signal.count }} cases
+                  </span>
+                </h6>
+                <p class="mb-0 small text-muted">
+                  <i data-feather="tag" class="feather-sm me-1"></i> {{ signal.category|title }} • 
+                  <i data-feather="calendar" class="feather-sm me-1"></i> {{ signal.first_seen.strftime('%b %d') }} - {{ signal.last_seen.strftime('%b %d') }}
+                </p>
+              </div>
+              <div>
+                <span class="badge bg-{{ 'danger' if signal.severity == 'High' else 'warning' }}-subtle text-{{ 'danger' if signal.severity == 'High' else 'warning' }}">
+                  <i data-feather="{{ 'alert-triangle' if signal.severity == 'High' else 'alert-circle' }}" class="feather-sm me-1"></i>
+                  {{ signal.severity }} Priority
+                </span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- Visualization Cards -->
 <div class="row mb-4">
@@ -160,15 +229,76 @@
   </div>
 </div>
 
+<!-- Summary Statistics -->
+<div class="row mb-4">
+  <div class="col-md-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">Summary Statistics</h5>
+        <div class="btn-group" role="group">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="exportData">
+            <i data-feather="download" class="feather-sm me-1"></i> Export Data
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row g-4">
+          <div class="col-md-3 col-6">
+            <div class="card bg-light border-0 h-100">
+              <div class="card-body text-center">
+                <h6 class="text-uppercase text-muted small mb-1">Total Symptoms</h6>
+                <h3 class="mb-0">{{ total_symptoms }}</h3>
+                <p class="text-muted small mb-0">across all patients</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3 col-6">
+            <div class="card bg-light border-0 h-100">
+              <div class="card-body text-center">
+                <h6 class="text-uppercase text-muted small mb-1">Unique Symptoms</h6>
+                <h3 class="mb-0">{{ unique_symptoms|length }}</h3>
+                <p class="text-muted small mb-0">different types reported</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3 col-6">
+            <div class="card bg-light border-0 h-100">
+              <div class="card-body text-center">
+                <h6 class="text-uppercase text-muted small mb-1">Avg. Severity</h6>
+                <h3 class="mb-0">{{ "%.1f"|format(avg_severity) }}/10</h3>
+                <p class="text-muted small mb-0">across all reports</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3 col-6">
+            <div class="card bg-light border-0 h-100">
+              <div class="card-body text-center">
+                <h6 class="text-uppercase text-muted small mb-1">Top Location</h6>
+                <h3 class="mb-0">{{ top_location[0]|default('N/A') }}</h3>
+                <p class="text-muted small mb-0">{{ top_location[1]|default(0) }} cases</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Time Trends -->
 <div class="row mb-4">
   <div class="col-md-12">
     <div class="card border-0 shadow-sm">
-      <div class="card-header bg-transparent">
-        <h5 class="card-title">Symptom Trends Over Time</h5>
+      <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">Symptom Trends Over Time</h5>
+        <div class="btn-group" role="group">
+          <button type="button" class="btn btn-sm btn-outline-secondary active" data-period="week">Week</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-period="month">Month</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-period="quarter">Quarter</button>
+        </div>
       </div>
       <div class="card-body">
-        <div class="chart-container" style="height: 250px;">
+        <div class="chart-container" style="height: 300px;">
           <canvas id="timeChart"></canvas>
         </div>
       </div>
@@ -284,10 +414,122 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tableexport.jquery.plugin@1.10.21/tableExport.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tableexport.jquery.plugin@1.10.21/libs/js-xlsx/xlsx.core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tableexport.jquery.plugin@1.10.21/libs/FileSaver/FileSaver.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   // Initialize feather icons in dynamic content
   feather.replace();
+  
+  // Initialize tooltips
+  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+  
+  // Initialize outbreak alert interactions
+  document.querySelectorAll('.outbreak-alert').forEach(alert => {
+    alert.addEventListener('click', function() {
+      const symptom = this.querySelector('h6').textContent.split(' ')[0];
+      $('#symptomSearch').val(symptom).trigger('keyup');
+      
+      // Scroll to the table
+      document.getElementById('symptomTable').scrollIntoView({
+        behavior: 'smooth'
+      });
+    });
+  });
+  
+  // Export data functionality
+  document.getElementById('exportData').addEventListener('click', function() {
+    $('#symptomTable').tableExport({
+      formats: ['csv', 'xlsx'],
+      filename: 'symptom-data-export',
+      exportButtons: false
+    });
+  });
+  
+  // Time period toggle functionality
+  const timePeriodButtons = document.querySelectorAll('[data-period]');
+  timePeriodButtons.forEach(button => {
+    button.addEventListener('click', function() {
+      // Remove active class from all buttons
+      timePeriodButtons.forEach(btn => btn.classList.remove('active'));
+      // Add active class to clicked button
+      this.classList.add('active');
+      
+      // Here you would typically make an AJAX call to get filtered data
+      // For now, we'll just log the selected period
+      console.log('Selected period:', this.dataset.period);
+      
+      // Example of how you might update the chart with new data
+      // updateTimeChart(this.dataset.period);
+    });
+  });
+  
+  // Make outbreak alerts dismissible
+  document.querySelectorAll('.outbreak-alert .btn-close').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      this.closest('.outbreak-alert').style.display = 'none';
+    });
+  });
+  
+  // Initialize DataTable for symptom data
+  const symptomTable = $('#symptomTable').DataTable({
+    pageLength: 25,
+    order: [[5, 'desc']], // Sort by date by default
+    dom: '<"row"<"col-md-6"l><"col-md-6"f>>rt<"row"<"col-md-6"i><"col-md-6"p>>',
+    language: {
+      search: "",
+      searchPlaceholder: "Search symptoms...",
+      lengthMenu: "Show _MENU_ entries",
+      info: "Showing _START_ to _END_ of _TOTAL_ entries",
+      infoEmpty: "No entries found",
+      infoFiltered: "(filtered from _MAX_ total entries)",
+      paginate: {
+        previous: "<i data-feather='chevron-left'></i>",
+        next: "<i data-feather='chevron-right'></i>"
+      }
+    },
+    drawCallback: function() {
+      // Reinitialize feather icons after table redraw
+      feather.replace();
+    }
+  });
+  
+  // Custom search input
+  $('#symptomSearch').on('keyup', function() {
+    symptomTable.search(this.value).draw();
+  });
+  
+  // Update chart on filter change
+  document.querySelectorAll('#categoryFilter, #severityFilter, #locationFilter').forEach(filter => {
+    filter.addEventListener('change', function() {
+      updateCharts();
+    });
+  });
+  
+  // Function to update all charts based on filters
+  function updateCharts() {
+    const filters = {
+      category: document.getElementById('categoryFilter').value,
+      severity: document.getElementById('severityFilter').value,
+      location: document.getElementById('locationFilter').value
+    };
+    
+    // Here you would typically make an AJAX call to get filtered data
+    // For now, we'll just log the filters
+    console.log('Updating charts with filters:', filters);
+    
+    // Example of how you might update the charts
+    // updateCategoryChart(filters);
+    // updateSeverityChart(filters);
+    // updateLocationChart(filters);
+    // updateTimeChart('week'); // Default to week view
+  }
   
   // Chart.js Configuration
   const categoryData = {

@@ -95,6 +95,87 @@ class Patient(db.Model):
     def get_all(cls):
         """Get all patients ordered by creation date (newest first)"""
         return cls.query.order_by(cls.created_at.desc()).all()
+        
+    @classmethod
+    def get_patient_statistics(cls):
+        """Get statistics for the patients dashboard
+        
+        Returns:
+            dict: A dictionary containing patient statistics with the following structure:
+                {
+                    'locations': {
+                        'Nairobi': int,
+                        'Mombasa': int,
+                        'Other': int
+                    },
+                    'age_groups': {
+                        '0-18': int,
+                        '19-30': int,
+                        '31-45': int,
+                        '46-60': int,
+                        '61+': int
+                    },
+                    'gender_distribution': {
+                        'Male': int,
+                        'Female': int,
+                        'Other': int
+                    }
+                }
+        """
+        from collections import defaultdict
+        
+        # Initialize statistics
+        stats = {
+            'locations': defaultdict(int),
+            'age_groups': {
+                '0-18': 0,
+                '19-30': 0,
+                '31-45': 0,
+                '46-60': 0,
+                '61+': 0
+            },
+            'gender_distribution': defaultdict(int)
+        }
+        
+        # Get all patients
+        patients = cls.query.all()
+        
+        for patient in patients:
+            # Count by location (simplify to major cities)
+            location = patient.location or 'Unknown'
+            if 'nairobi' in location.lower():
+                stats['locations']['Nairobi'] += 1
+            elif 'mombasa' in location.lower():
+                stats['locations']['Mombasa'] += 1
+            elif 'kisumu' in location.lower():
+                stats['locations']['Kisumu'] += 1
+            elif 'nakuru' in location.lower():
+                stats['locations']['Nakuru'] += 1
+            else:
+                stats['locations']['Other'] += 1
+            
+            # Count by age group
+            if patient.age is not None:
+                if patient.age <= 18:
+                    stats['age_groups']['0-18'] += 1
+                elif 19 <= patient.age <= 30:
+                    stats['age_groups']['19-30'] += 1
+                elif 31 <= patient.age <= 45:
+                    stats['age_groups']['31-45'] += 1
+                elif 46 <= patient.age <= 60:
+                    stats['age_groups']['46-60'] += 1
+                else:
+                    stats['age_groups']['61+'] += 1
+            
+            # Count by gender
+            gender = patient.gender or 'Unknown'
+            stats['gender_distribution'][gender] += 1
+        
+        # Convert defaultdict to regular dict for JSON serialization
+        stats['locations'] = dict(stats['locations'])
+        stats['gender_distribution'] = dict(stats['gender_distribution'])
+        
+        return stats
 
 class HealthInfo(db.Model):
     __tablename__ = 'health_info_articles'  # Changed to avoid conflict with patient health info
@@ -271,67 +352,87 @@ class Payment(db.Model):
     
     @classmethod
     def generate_payment_summary(cls):
-        """Generate payment summary with payment methods breakdown"""
-        from sqlalchemy import func, case
+        """Generate payment summary with payment methods breakdown
+        
+        Returns:
+            dict: A dictionary containing payment summary with the following structure:
+                {
+                    'payment_methods': {
+                        'mpesa': {'amount': float, 'count': int, 'completed_amount': float},
+                        'cash': {'amount': float, 'count': int, 'completed_amount': float},
+                        'card': {'amount': float, 'count': int, 'completed_amount': float},
+                        'insurance': {'amount': float, 'count': int, 'completed_amount': float}
+                    },
+                    'total_revenue': float,
+                    'pending_amount': float,
+                    'completed_amount': float,
+                    'pending_count': int,
+                    'completed_count': int,
+                    'failed_count': int
+                }
+        """
+        from sqlalchemy import func
         
         # Initialize summary with default values
         summary = {
             'payment_methods': {
                 'mpesa': {
-                    'amount': 0,
+                    'amount': 0.0,
                     'count': 0,
-                    'completed_amount': 0
+                    'completed_amount': 0.0
                 },
                 'cash': {
-                    'amount': 0,
+                    'amount': 0.0,
                     'count': 0,
-                    'completed_amount': 0
+                    'completed_amount': 0.0
                 },
                 'card': {
-                    'amount': 0,
+                    'amount': 0.0,
                     'count': 0,
-                    'completed_amount': 0
+                    'completed_amount': 0.0
                 },
                 'insurance': {
-                    'amount': 0,
+                    'amount': 0.0,
                     'count': 0,
-                    'completed_amount': 0
+                    'completed_amount': 0.0
                 }
             },
-            'total_revenue': 0,
-            'pending_payments': 0,
-            'completed_payments': 0
+            'total_revenue': 0.0,
+            'pending_amount': 0.0,
+            'completed_amount': 0.0,
+            'pending_count': 0,
+            'completed_count': 0,
+            'failed_count': 0
         }
         
-        # Get total revenue and payment method breakdown for completed payments
-        completed_payments = cls.query.filter_by(status='completed').all()
+        # Get all payments grouped by status
+        payments = cls.query.all()
         
-        for payment in completed_payments:
-            method = payment.payment_method.lower()
-            if method in summary['payment_methods']:
-                summary['payment_methods'][method]['amount'] += float(payment.amount)
-                summary['payment_methods'][method]['count'] += 1
-                summary['payment_methods'][method]['completed_amount'] += float(payment.amount)
+        for payment in payments:
+            amount = float(payment.amount or 0)
+            method = (payment.payment_method or 'cash').lower()
+            
+            # Ensure method exists in our summary
+            if method not in summary['payment_methods']:
+                method = 'cash'  # Default to cash if method is unknown
+                
+            # Update payment method stats
+            summary['payment_methods'][method]['amount'] += amount
+            summary['payment_methods'][method]['count'] += 1
+            
+            # Update status-based stats
+            if payment.status == 'completed':
+                summary['payment_methods'][method]['completed_amount'] += amount
+                summary['completed_amount'] += amount
+                summary['completed_count'] += 1
+            elif payment.status == 'pending':
+                summary['pending_amount'] += amount
+                summary['pending_count'] += 1
+            elif payment.status == 'failed':
+                summary['failed_count'] += 1
         
-        # Get pending payments count
-        pending_count = cls.query.filter_by(status='pending').count()
-        summary['pending_payments'] = pending_count
-        
-        # Get completed payments count and total revenue
-        completed_count = len(completed_payments)
-        summary['completed_payments'] = completed_count
-        
-        # Calculate total revenue from completed payments
-        total_revenue = sum(float(p.amount) for p in completed_payments)
-        summary['total_revenue'] = total_revenue
-        
-        # Update payment methods with pending amounts if needed
-        pending_payments = cls.query.filter_by(status='pending').all()
-        for payment in pending_payments:
-            method = payment.payment_method.lower()
-            if method in summary['payment_methods']:
-                summary['payment_methods'][method]['amount'] += float(payment.amount)
-                summary['payment_methods'][method]['count'] += 1
+        # Calculate total revenue (only from completed payments)
+        summary['total_revenue'] = summary['completed_amount']
         
         return summary
 
