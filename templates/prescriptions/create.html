@@ -10,8 +10,21 @@
                 <h5 class="mb-0">Prescription Details</h5>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('create_prescription') }}" id="prescriptionForm">
-                    {{ form.hidden_tag() }}
+                <form method="POST" action="{{ url_for('create_prescription') }}" id="prescriptionForm" novalidate>
+                    {{ form.hidden_tag() }}  <!-- This includes the CSRF token -->
+                    
+                    {% if form.errors %}
+                    <div class="alert alert-danger">
+                        <h6>Please fix the following errors:</h6>
+                        <ul class="mb-0">
+                            {% for field, errors in form.errors.items() %}
+                                {% for error in errors %}
+                                    <li>{{ form[field].label.text }}: {{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
                     
                     <!-- Patient Selection -->
                     <div class="mb-4">
@@ -151,7 +164,21 @@
 {% block scripts %}
 {{ super() }}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+    // Add event listener for form submission
+    document.getElementById('prescriptionForm').addEventListener('submit', function(e) {
+        console.log('Form submitted');
+        console.log('Form data:', new FormData(this));
+        
+        // Log all form fields
+        const formData = new FormData(this);
+        for (let [key, value] of formData.entries()) {
+            console.log(`${key}: ${value}`);
+        }
+    });
+    
+    // Existing code
+    // Existing code
+    document.addEventListener('DOMContentLoaded', function() {
     // Initialize feather icons
     if (typeof feather !== 'undefined') {
         feather.replace();
@@ -162,119 +189,172 @@ document.addEventListener('DOMContentLoaded', function() {
     const pharmacyField = document.getElementById('pharmacyField');
     
     function togglePharmacyField() {
-        if (collectionMethod.value === 'pickup') {
-            pharmacyField.style.display = 'block';
-            document.getElementById('{{ form.pharmacy_id.id }}').setAttribute('required', 'required');
+        if (collectionMethod && collectionMethod.value === 'pharmacy') {
+            if (pharmacyField) pharmacyField.style.display = 'block';
+            const pharmacyId = document.getElementById('{{ form.pharmacy_id.id }}');
+            if (pharmacyId) {
+                pharmacyId.setAttribute('required', 'required');
+            }
         } else {
-            pharmacyField.style.display = 'none';
-            document.getElementById('{{ form.pharmacy_id.id }}').removeAttribute('required');
+            if (pharmacyField) pharmacyField.style.display = 'none';
+            const pharmacyId = document.getElementById('{{ form.pharmacy_id.id }}');
+            if (pharmacyId) {
+                pharmacyId.removeAttribute('required');
+            }
         }
     }
     
-    // Initial toggle
-    togglePharmacyField();
+    // Initialize pharmacy field visibility
+    if (collectionMethod && pharmacyField) {
+        togglePharmacyField();
+        collectionMethod.addEventListener('change', togglePharmacyField);
+    }
     
-    // Add event listener
-    collectionMethod.addEventListener('change', togglePharmacyField);
-    
-    // Add medication
+    // Get references to the medication form elements
     const addButton = document.getElementById('addMedication');
     const container = document.getElementById('medications-container');
     const totalForms = document.getElementById('{{ form.medications.id }}_TOTAL_FORMS');
+    let formCount = totalForms ? parseInt(totalForms.value) : 0;
     
-    addButton.addEventListener('click', function() {
-        const formCount = parseInt(totalForms.value);
-        const newForm = document.querySelector('.medication-entry').cloneNode(true);
-        const formPrefix = '{{ form.medications.prefix }}';
+    // Function to add a new medication entry
+    function addMedicationEntry() {
+        if (!container) return;
+        
+        // Clone the first medication entry
+        const firstEntry = document.querySelector('.medication-entry');
+        if (!firstEntry) return;
+        
+        const newEntry = firstEntry.cloneNode(true);
         
         // Update the form count
-        totalForms.setAttribute('value', formCount + 1);
+        formCount++;
+        if (totalForms) {
+            totalForms.value = formCount;
+        }
         
-        // Update the new form with the correct index
-        newForm.innerHTML = newForm.innerHTML.replace(/__prefix__/g, formCount);
-        
-        // Update field names and IDs
-        const fields = newForm.querySelectorAll('[name*="__prefix__"]');
-        fields.forEach(function(field) {
-            field.name = field.name.replace('__prefix__', formCount);
-            if (field.id) {
-                field.id = field.id.replace('__prefix__', formCount);
-            }
-            // Clear the value
-            if (field.type === 'text' || field.tagName === 'SELECT' || field.type === 'hidden') {
+        // Update field names and IDs with the new index
+        const fields = newEntry.querySelectorAll('input, select, textarea');
+        fields.forEach(field => {
+            // Update name attribute
+            const nameMatch = field.name.match(/^(.*?)-(\d+)-(.*)$/);
+            if (nameMatch) {
+                field.name = `${nameMatch[1]}-${formCount - 1}-${nameMatch[3]}`;
+                
+                // Update ID attribute if it exists
+                if (field.id) {
+                    field.id = `${nameMatch[1]}-${formCount - 1}-${nameMatch[3]}`;
+                }
+                
+                // Clear the value
                 field.value = '';
+                
+                // Remove validation classes
+                field.classList.remove('is-valid', 'is-invalid');
+                
+                // Remove any existing validation messages
+                const invalidFeedback = field.parentNode.querySelector('.invalid-feedback');
+                if (invalidFeedback) {
+                    field.parentNode.removeChild(invalidFeedback);
+                }
             }
         });
         
         // Update labels
-        const labels = newForm.querySelectorAll('label');
-        labels.forEach(function(label) {
+        const labels = newEntry.querySelectorAll('label');
+        labels.forEach(label => {
             if (label.htmlFor) {
-                label.htmlFor = label.htmlFor.replace('__prefix__', formCount);
+                const forMatch = label.htmlFor.match(/^(.*?)-(\d+)-(.*)$/);
+                if (forMatch) {
+                    label.htmlFor = `${forMatch[1]}-${formCount - 1}-${forMatch[3]}`;
+                }
             }
         });
         
-        // Enable remove button
-        const removeBtn = newForm.querySelector('.remove-medication');
+        // Enable and set up the remove button
+        const removeBtn = newEntry.querySelector('.remove-medication');
         if (removeBtn) {
             removeBtn.disabled = false;
-            removeBtn.addEventListener('click', function() {
-                newForm.remove();
-                updateFormIndices();
-            });
+            removeBtn.onclick = function() {
+                if (document.querySelectorAll('.medication-entry').length > 1) {
+                    container.removeChild(newEntry);
+                    updateFormIndices();
+                }
+            };
         }
         
-        // Add the new form
-        container.appendChild(newForm);
+        // Add the new entry to the container
+        container.appendChild(newEntry);
         
-        // Re-initialize feather icons for the new form
+        // Reinitialize feather icons
         if (typeof feather !== 'undefined') {
             feather.replace();
         }
-    });
+    }
     
-    // Remove medication
-    document.querySelectorAll('.remove-medication').forEach(function(button) {
-        button.addEventListener('click', function() {
-            if (document.querySelectorAll('.medication-entry').length > 1) {
-                this.closest('.medication-entry').remove();
-                updateFormIndices();
-            }
+    // Add event listener for the add button
+    if (addButton) {
+        addButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            addMedicationEntry();
         });
-    });
+    }
     
-    // Update form indices for proper form submission
+    // Function to update form indices after removing an entry
     function updateFormIndices() {
-        const forms = document.querySelectorAll('.medication-entry');
-        totalForms.setAttribute('value', forms.length);
+        const entries = document.querySelectorAll('.medication-entry');
+        if (totalForms) {
+            totalForms.value = entries.length;
+        }
         
-        forms.forEach(function(form, index) {
-            // Update the form fields' names and IDs
-            const fields = form.querySelectorAll('[name*="-"]');
-            
-            fields.forEach(function(field) {
-                // Update name and ID for form fields
+        entries.forEach((entry, index) => {
+            // Update all form fields
+            const fields = entry.querySelectorAll('input, select, textarea');
+            fields.forEach(field => {
                 const nameMatch = field.name.match(/^(.*?)-(\d+)-(.*)$/);
                 if (nameMatch) {
+                    // Update name and ID with new index
                     field.name = `${nameMatch[1]}-${index}-${nameMatch[3]}`;
                     if (field.id) {
-                        field.id = `medications-${index}-${nameMatch[3]}`;
+                        field.id = `${nameMatch[1]}-${index}-${nameMatch[3]}`;
                     }
                 }
             });
             
             // Update labels
-            const labels = form.querySelectorAll('label');
-            labels.forEach(function(label) {
+            const labels = entry.querySelectorAll('label');
+            labels.forEach(label => {
                 if (label.htmlFor) {
-                    const labelMatch = label.htmlFor.match(/^(.*?)-(\d+)-(.*)$/);
-                    if (labelMatch) {
-                        label.htmlFor = `medications-${index}-${labelMatch[3]}`;
+                    const forMatch = label.htmlFor.match(/^(.*?)-(\d+)-(.*)$/);
+                    if (forMatch) {
+                        label.htmlFor = `${forMatch[1]}-${index}-${forMatch[3]}`;
                     }
                 }
             });
+            
+            // Update the remove button state
+            const removeBtn = entry.querySelector('.remove-medication');
+            if (removeBtn) {
+                removeBtn.disabled = (index === 0);
+            }
         });
+        
+        // Update the form count
+        formCount = entries.length;
     }
+    
+    // Add event listeners to existing remove buttons
+    document.querySelectorAll('.remove-medication').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const entry = this.closest('.medication-entry');
+            if (entry && document.querySelectorAll('.medication-entry').length > 1) {
+                if (container) {
+                    container.removeChild(entry);
+                    updateFormIndices();
+                }
+            }
+        });
+    });
 });
 </script>
 {% endblock %}

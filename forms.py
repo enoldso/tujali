@@ -195,12 +195,12 @@ class PrescriptionForm(FlaskForm):
         choices=[
             ('local_delivery', 'Local Delivery'),
             ('drone_delivery', 'Drone Delivery (where available)'),
-            ('pickup', 'Pharmacy Pickup')
+            ('pharmacy', 'Pharmacy Pickup')
         ], 
         validators=[DataRequired()]
     )
     
-    pharmacy_id = SelectField('Preferred Pharmacy', coerce=int, validators=[])
+    pharmacy_id = SelectField('Pharmacy', coerce=int, validators=[])
     
     submit = SubmitField('Create Prescription')
     
@@ -208,15 +208,16 @@ class PrescriptionForm(FlaskForm):
         super(PrescriptionForm, self).__init__(*args, **kwargs)
         
         # Populate patient choices
-        from models import Patient
+        from models_sqlalchemy import Patient
+        from extensions import db
         self.patient_id.choices = [(p.id, f"{p.name} ({p.phone_number})") 
-                                 for p in Patient.get_all()]
+                                 for p in db.session.query(Patient).all()]
         
         # Populate pharmacy choices
-        from models import Pharmacy, db
+        from models_sqlalchemy import Pharmacy
         self.pharmacy_id.choices = [(0, 'Any Pharmacy')] + \
                                   [(p.id, f"{p.name} - {p.city}, {p.state}") 
-                                   for p in Pharmacy.get_all()]
+                                   for p in db.session.query(Pharmacy).all()]
     
     def validate(self, **kwargs):
         # Standard validation

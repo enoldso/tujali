@@ -90,14 +90,26 @@
                 <h5 class="card-title">Symptoms & Medical History</h5>
             </div>
             <div class="card-body">
-                {% if patient.symptoms %}
+                {% if symptoms %}
                     <div class="timeline">
-                        {% for symptom in patient.symptoms %}
+                        {% for symptom in symptoms %}
                         <div class="timeline-item">
                             <div class="timeline-marker"></div>
                             <div class="timeline-content">
                                 <h6 class="mb-1">{{ symptom.date.strftime('%d %b %Y, %H:%M') }}</h6>
                                 <p>{{ symptom.text }}</p>
+                                {% if symptom.metadata %}
+                                    <div class="mt-2 small text-muted">
+                                        {% if symptom.metadata.severity %}
+                                            <span class="badge bg-{{ 'danger' if symptom.metadata.severity == 'high' else 'warning' if symptom.metadata.severity == 'medium' else 'info' }}">
+                                                {{ symptom.metadata.severity|title }}
+                                            </span>
+                                        {% endif %}
+                                        {% if symptom.metadata.duration %}
+                                            <span class="ms-1">Duration: {{ symptom.metadata.duration }}</span>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
                             </div>
                         </div>
                         {% endfor %}
@@ -106,6 +118,46 @@
                     <div class="text-center py-4">
                         <i data-feather="activity" class="mb-2 text-muted"></i>
                         <p class="mb-0 text-muted">No symptoms reported yet</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Medical History -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="card-title">Medical History</h5>
+            </div>
+            <div class="card-body">
+                {% if medical_history %}
+                    <div class="list-group list-group-flush">
+                        {% for record in medical_history %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="mb-1">
+                                        {{ record.interaction_type|replace('_', ' ')|title }} - 
+                                        {{ record.created_at.strftime('%d %b %Y') }}
+                                    </h6>
+                                    <p class="mb-1">{{ record.description }}</p>
+                                    {% if record.interaction_metadata %}
+                                        <div class="small text-muted">
+                                            {% for key, value in record.interaction_metadata.items() %}
+                                                <span class="me-2">
+                                                    <strong>{{ key|replace('_', ' ')|title }}:</strong> {{ value }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i data-feather="file-text" class="mb-2 text-muted"></i>
+                        <p class="mb-0 text-muted">No medical history recorded yet</p>
                     </div>
                 {% endif %}
             </div>

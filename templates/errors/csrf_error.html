@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}CSRF Error - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">Security Error</h4>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">CSRF Token Error</h5>
+                    <p class="card-text">
+                        The form could not be submitted because your session has expired or the security token is invalid.
+                        This is a security feature to protect against cross-site request forgery (CSRF) attacks.
+                    </p>
+                    {% if reason %}
+                    <div class="alert alert-warning">
+                        <strong>Details:</strong> {{ reason }}
+                    </div>
+                    {% endif %}
+                    <p>Please try the following:</p>
+                    <ol>
+                        <li>Refresh the page and try again</li>
+                        <li>Ensure cookies are enabled in your browser</li>
+                        <li>If the problem persists, try logging out and back in</li>
+                    </ol>
+                    <div class="mt-4">
+                        <a href="{{ url_for('index') }}" class="btn btn-primary">
+                            <i class="fas fa-home"></i> Return to Home
+                        </a>
+                        <a href="javascript:history.back()" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Go Back
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

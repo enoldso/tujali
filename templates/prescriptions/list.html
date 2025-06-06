@@ -40,8 +40,7 @@
                         <tr>
                             <td>{{ prescription.created_at.strftime('%b %d, %Y') }}</td>
                             <td>
-                                {% set patient = Patient.get_by_id(prescription.patient_id) %}
-                                {{ patient.name if patient else 'Unknown' }}
+                                {{ patients[prescription.patient_id].name if prescription.patient_id in patients else 'Unknown' }}
                             </td>
                             <td>
                                 {% if prescription.medication_details %}
@@ -73,8 +72,7 @@
                                 {% if prescription.pharmacy_id %}
                                     <br>
                                     <small class="text-muted">
-                                        {% set pharmacy = Pharmacy.get_by_id(prescription.pharmacy_id) %}
-                                        {{ pharmacy.name if pharmacy else 'Pharmacy not found' }}
+                                        {{ pharmacies[prescription.pharmacy_id].name if prescription.pharmacy_id in pharmacies else 'Pharmacy not found' }}
                                     </small>
                                 {% endif %}
                             </td>

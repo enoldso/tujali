@@ -1,8 +1,10 @@
 import os
+import json
 import logging
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, abort, send_from_directory
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
+from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 from config import config
@@ -33,6 +35,26 @@ app.config.from_object(config[env])
 db_ext.init_app(app)
 migrate.init_app(app, db_ext)
 
+# Configure CSRF protection
+app.config['WTF_CSRF_ENABLED'] = True
+app.config['WTF_CSRF_SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
+app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour
+app.config['WTF_CSRF_SSL_STRICT'] = False  # For development only
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+
+# Add CSRF token to all templates
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=generate_csrf())
+
+# Error handler for CSRF errors
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    app.logger.warning(f'CSRF Error: {e.description}')
+    return render_template('errors/csrf_error.html', error=e.description), 400
+
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -44,11 +66,10 @@ def load_user(user_id):
 
 # Add template filters
 from datetime import datetime
+
 @app.template_filter('now')
 def _jinja2_filter_now():
     """Return current datetime for templates"""
-# Initialize Login Manager (moved after app initialization)
-
 # Database initialization is now handled above
 
 # Debug information
@@ -400,14 +421,58 @@ def patient_detail(patient_id):
         flash('Patient not found.', 'danger')
         return redirect(url_for('patients'))
     
+    # Get appointments and messages
     appointments = Appointment.get_by_patient(patient_id)
     messages = Message.get_conversation(provider.id, patient_id)
+    
+    # Get symptom data from user interactions
+    symptom_interactions = db_ext.session.query(UserInteraction).filter(
+        UserInteraction.patient_id == patient_id,
+        UserInteraction.interaction_type == 'symptom_report'
+    ).order_by(UserInteraction.created_at.desc()).all()
+    
+    print(f"Found {len(symptom_interactions)} symptom reports for patient {patient_id}")
+    
+    # Prepare symptoms data for the template
+    symptoms = []
+    for interaction in symptom_interactions:
+        symptom_data = {
+            'date': interaction.created_at,
+            'text': interaction.description,
+            'metadata': {}
+        }
+        
+        # Handle interaction_metadata if it exists
+        if hasattr(interaction, 'interaction_metadata') and interaction.interaction_metadata:
+            if isinstance(interaction.interaction_metadata, dict):
+                symptom_data['metadata'].update(interaction.interaction_metadata)
+            else:
+                try:
+                    # Try to parse as JSON if it's a string
+                    metadata = json.loads(interaction.interaction_metadata)
+                    if isinstance(metadata, dict):
+                        symptom_data['metadata'].update(metadata)
+                except (json.JSONDecodeError, TypeError):
+                    print(f"Could not parse metadata for interaction {interaction.id}")
+                    
+        symptoms.append(symptom_data)
+        print(f"Symptom: {symptom_data}")
+    
+    # Get medical history from interactions
+    medical_history = db_ext.session.query(UserInteraction).filter(
+        UserInteraction.patient_id == patient_id,
+        UserInteraction.interaction_type.in_(['medical_history', 'diagnosis', 'treatment'])
+    ).order_by(UserInteraction.created_at.desc()).all()
+    
+    print(f"Found {len(medical_history)} medical history records")
     
     return render_template('patient_detail.html', 
                           provider=provider,
                           patient=patient,
                           appointments=appointments,
-                          messages=messages)
+                          messages=messages,
+                          symptoms=symptoms,
+                          medical_history=medical_history)
 
 @app.route('/appointments')
 @login_required
@@ -1228,13 +1293,33 @@ app.view_functions['update_appointment'] = update_appointment_with_tracking
 @login_required
 def prescriptions():
     """List all prescriptions"""
+    from models_sqlalchemy import Patient, Pharmacy  # Import models here to avoid circular imports
+    
     provider = Provider.get_by_user_id(current_user.id)
     if not provider:
         flash('Provider profile not found', 'danger')
         return redirect(url_for('dashboard'))
         
-    # Get all prescriptions for the current provider
-    all_prescriptions = Prescription.get_by_provider(provider.id)
+    # Debug: Print provider ID
+    print(f"DEBUG: Fetching prescriptions for provider ID: {provider.id}")
+    
+    # Get all prescriptions for the current provider using SQLAlchemy query directly
+    all_prescriptions = Prescription.query.filter_by(provider_id=provider.id)\
+                                       .order_by(Prescription.created_at.desc())\
+                                       .all()
+    
+    # Get all patient and pharmacy IDs for the prescriptions
+    patient_ids = list({p.patient_id for p in all_prescriptions})
+    pharmacy_ids = list({p.pharmacy_id for p in all_prescriptions if p.pharmacy_id is not None})
+    
+    # Get all patients and pharmacies in a single query
+    patients = {p.id: p for p in Patient.query.filter(Patient.id.in_(patient_ids)).all()} if patient_ids else {}
+    pharmacies = {p.id: p for p in Pharmacy.query.filter(Pharmacy.id.in_(pharmacy_ids)).all()} if pharmacy_ids else {}
+    
+    # Debug: Print number of prescriptions found
+    print(f"DEBUG: Found {len(all_prescriptions)} prescriptions")
+    if all_prescriptions:
+        print(f"DEBUG: First prescription: {all_prescriptions[0].__dict__}")
     
     # Get unread message count for sidebar
     unread_count = Message.get_unread_count(provider.id)
@@ -1242,6 +1327,8 @@ def prescriptions():
     return render_template('prescriptions/list.html', 
                          prescriptions=all_prescriptions,
                          provider=provider,
+                         patients=patients,
+                         pharmacies=pharmacies,
                          unread_count=unread_count)
 
 
@@ -1249,57 +1336,209 @@ def prescriptions():
 @login_required
 def create_prescription():
     """Create a new prescription"""
-    provider = Provider.get_by_user_id(current_user.id)
-    if not provider:
-        flash('Provider profile not found', 'danger')
+    try:
+        print("DEBUG: Entered create_prescription route")
+        
+        # Temporarily disable CSRF for testing
+        from flask_wtf.csrf import CSRFError
+        if request.method == 'POST' and 'csrf_token' not in request.form:
+            print("WARNING: CSRF token missing, but continuing for testing")
+        
+        # Get the current provider
+        provider = Provider.get_by_user_id(current_user.id)
+        if not provider:
+            error_msg = 'Provider profile not found. Please complete your provider profile first.'
+            print(f"ERROR: {error_msg}")
+            flash(error_msg, 'danger')
+            return redirect(url_for('dashboard'))
+        
+        print(f"DEBUG: Found provider with ID: {provider.id}")
+        
+        # Initialize form
+        form = PrescriptionForm()
+        
+        # Debug CSRF token
+        print(f"DEBUG: CSRF Token in form: {form.csrf_token.current_token}")
+        print(f"DEBUG: CSRF Token in session: {session.get('_csrf_token')}")
+        
+        # Populate patient and pharmacy choices
+        try:
+            form.patient_id.choices = [(0, 'Select Patient')] + [(p.id, p.name) for p in Patient.query.all()]
+            form.pharmacy_id.choices = [(0, 'Select Pharmacy')] + [(p.id, p.name) for p in Pharmacy.query.all()]
+            print(f"DEBUG: Form initialized with {len(form.patient_id.choices)-1} patients and {len(form.pharmacy_id.choices)-1} pharmacies")
+        except Exception as e:
+            print(f"ERROR: Failed to populate form choices: {str(e)}")
+            flash('Error loading form data. Please try again.', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        if form.validate_on_submit():
+            print("DEBUG: Form validation passed")
+            print(f"DEBUG: Form data: {request.form}")
+            print(f"DEBUG: CSRF Token in form: {form.csrf_token.data}")
+            print(f"DEBUG: CSRF Token in session: {session.get('_csrf_token')}")
+            
+            # Validate patient selection
+            if not form.patient_id.data or form.patient_id.data == 0:
+                flash('Please select a patient', 'danger')
+                return render_template('prescriptions/create.html', form=form, provider=provider)
+            
+            # Validate pharmacy selection if collection method is 'pharmacy'
+            if form.collection_method.data == 'pharmacy' and (not form.pharmacy_id.data or form.pharmacy_id.data == 0):
+                flash('Please select a pharmacy for pharmacy collection', 'danger')
+                return render_template('prescriptions/create.html', form=form, provider=provider)
+            
+            try:
+                # Prepare medication details
+                medications = []
+                if not form.medications.data:
+                    flash('Please add at least one medication', 'danger')
+                    return render_template('prescriptions/create.html', form=form, provider=provider)
+                
+                for i, med in enumerate(form.medications.data):
+                    if not all([med.get('name'), med.get('dosage'), med.get('frequency'), med.get('duration')]):
+                        flash(f'Please fill in all fields for medication {i+1}', 'danger')
+                        return render_template('prescriptions/create.html', form=form, provider=provider)
+                    
+                    medications.append({
+                        'name': med['name'].strip(),
+                        'dosage': med['dosage'].strip(),
+                        'frequency': med['frequency'].strip(),
+                        'duration': med['duration'].strip()
+                    })
+                
+                print(f"DEBUG: Creating prescription for provider_id={provider.id}, patient_id={form.patient_id.data}")
+                print(f"DEBUG: Medications: {medications}")
+                
+                # Create prescription
+                prescription = Prescription(
+                    provider_id=provider.id,
+                    patient_id=form.patient_id.data,
+                    medication_details=medications,
+                    instructions=form.instructions.data.strip() if form.instructions.data else None,
+                    collection_method=form.collection_method.data,
+                    pharmacy_id=form.pharmacy_id.data if form.collection_method.data == 'pharmacy' and form.pharmacy_id.data != 0 else None,
+                    status='pending'  # Initial status
+                )
+                
+                print(f"DEBUG: Prescription object created: {prescription.__dict__}")
+                
+                # Add to session and commit
+                db_ext.session.add(prescription)
+                db_ext.session.flush()
+                print(f"DEBUG: After flush - Prescription ID: {prescription.id}")
+                
+                # Commit the transaction
+                db_ext.session.commit()
+                print(f"DEBUG: After commit - Prescription ID: {prescription.id}")
+                
+                # Verify the prescription was saved
+                saved_prescription = Prescription.query.get(prescription.id)
+                if not saved_prescription:
+                    raise Exception("Failed to verify prescription was saved")
+                
+                print(f"DEBUG: Successfully saved prescription with ID: {prescription.id}")
+                
+                flash('Prescription created successfully!', 'success')
+                return redirect(url_for('view_prescription', prescription_id=prescription.id))
+                
+            except Exception as e:
+                db_ext.session.rollback()
+                error_msg = f'Error creating prescription: {str(e)}'
+                print(f"ERROR: {error_msg}")
+                import traceback
+                traceback.print_exc()
+                flash('An error occurred while creating the prescription. Please try again.', 'danger')
+        else:
+            # Form validation failed
+            if form.errors:
+                print(f"DEBUG: Form validation errors: {form.errors}")
+                for field, errors in form.errors.items():
+                    for error in errors:
+                        flash(f"{field}: {error}", 'danger')
+        
+        # If we get here, there was an error or it's a GET request
+        return render_template('prescriptions/create.html', form=form, provider=provider)
+        
+    except Exception as e:
+        error_msg = f'Unexpected error in create_prescription: {str(e)}'
+        print(f"CRITICAL ERROR: {error_msg}")
+        import traceback
+        traceback.print_exc()
+        flash('An unexpected error occurred. Please try again.', 'danger')
         return redirect(url_for('dashboard'))
     
-    form = PrescriptionForm()
-    
-    if form.validate_on_submit():
-        # Prepare medication details
-        medications = []
-        for med in form.medications.data:
-            medications.append({
-                'name': med['name'],
-                'dosage': med['dosage'],
-                'frequency': med['frequency'],
-                'duration': med['duration']
-            })
+@app.route('/test/create_prescription')
+@login_required
+def test_create_prescription():
+    """Test route to create a prescription directly in the database"""
+    try:
+        print("DEBUG: Starting test prescription creation")
         
-        # Create prescription
-        prescription = Prescription.create(
-            provider_id=provider.id,
-            patient_id=form.patient_id.data,
-            medication_details=medications,
-            instructions=form.instructions.data,
-            collection_method=form.collection_method.data,
-            pharmacy_id=form.pharmacy_id.data if form.pharmacy_id.data != 0 else None
-        )
+        # Get the first provider and patient for testing
+        provider = Provider.query.first()
+        if not provider:
+            return "No providers found in the database"
+            
+        patient = Patient.query.first()
+        if not patient:
+            return "No patients found in the database"
+            
+        print(f"DEBUG: Using provider_id={provider.id}, patient_id={patient.id}")
         
-        flash('Prescription created successfully!', 'success')
-        return redirect(url_for('view_prescription', prescription_id=prescription.id))
-    
-    # Get unread message count for sidebar
-    unread_count = len([m for m in db['messages'] if m.provider_id == current_user.id and not m.is_read])
-    
-    return render_template('prescriptions/create.html', 
-                         form=form, 
-                         provider=provider,
-                         unread_count=unread_count)
+        # Create a test prescription
+        test_prescription = {
+            'provider_id': provider.id,
+            'patient_id': patient.id,
+            'medication_details': [{
+                'name': 'Test Medication',
+                'dosage': '500mg',
+                'frequency': 'Twice daily',
+                'duration': '7 days'
+            }],
+            'instructions': 'Take with food',
+            'collection_method': 'pickup',
+            'status': 'active'
+        }
+        
+        print(f"DEBUG: Creating test prescription: {test_prescription}")
+        
+        # Create and save the prescription
+        prescription = Prescription(**test_prescription)
+        db_ext.session.add(prescription)
+        db_ext.session.commit()
+        
+        print(f"DEBUG: Test prescription created with ID: {prescription.id}")
+        
+        # Verify it was saved
+        saved = Prescription.query.get(prescription.id)
+        if saved:
+            print(f"DEBUG: Successfully retrieved test prescription: {saved.id}")
+            return f"Success! Created test prescription with ID: {saved.id}"
+        else:
+            return "Error: Could not verify test prescription was saved"
+            
+    except Exception as e:
+        db_ext.session.rollback()
+        error_msg = f"Error in test_create_prescription: {str(e)}"
+        print(f"ERROR: {error_msg}")
+        import traceback
+        traceback.print_exc()
+        return f"Error: {error_msg}"
 
 
 @app.route('/prescriptions/<int:prescription_id>')
 @login_required
 def view_prescription(prescription_id):
     """View prescription details"""
+    from models_sqlalchemy import Patient, Pharmacy  # Import models here to avoid circular imports
+    
     provider = Provider.get_by_user_id(current_user.id)
     if not provider:
         flash('Provider profile not found', 'danger')
         return redirect(url_for('dashboard'))
     
-    # Get the prescription
-    prescription = Prescription.get_by_id(prescription_id)
+    # Get the prescription using SQLAlchemy's query.get()
+    prescription = Prescription.query.get(prescription_id)
     if not prescription:
         flash('Prescription not found', 'danger')
         return redirect(url_for('prescriptions'))
@@ -1309,12 +1548,12 @@ def view_prescription(prescription_id):
         flash('You are not authorized to view this prescription', 'danger')
         return redirect(url_for('prescriptions'))
     
-    # Get patient and pharmacy details
-    patient = Patient.get_by_id(prescription.patient_id)
-    pharmacy = Pharmacy.get_by_id(prescription.pharmacy_id) if prescription.pharmacy_id else None
+    # Get patient and pharmacy details in a single query
+    patient = Patient.query.get(prescription.patient_id)
+    pharmacy = Pharmacy.query.get(prescription.pharmacy_id) if prescription.pharmacy_id else None
     
     # Get unread message count for sidebar
-    unread_count = len([m for m in db['messages'] if m.provider_id == current_user.id and not m.is_read])
+    unread_count = Message.get_unread_count(provider.id)
     
     return render_template('prescriptions/view.html',
                          prescription=prescription,
