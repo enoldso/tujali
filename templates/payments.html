@@ -278,7 +278,7 @@
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Recent Payments</h5>
-                <a href="#" class="btn btn-sm btn-outline-primary">View All</a>
+                <a href="{{ url_for('payments') }}" class="btn btn-sm btn-outline-primary">View All</a>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -578,18 +578,17 @@
             </div>
         </div>
     </div>
-</div>
-{% endblock %}
-
-<!-- Create Payment Modal -->
-<div class="modal fade" id="createPaymentModal" tabindex="-1" aria-labelledby="createPaymentModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ url_for('create_payment') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="createPaymentModalLabel">Record New Payment</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
+    </div>
+    
+    <!-- Create Payment Modal -->
+    <div class="modal fade" id="createPaymentModal" tabindex="-1" aria-labelledby="createPaymentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="createPaymentForm" action="{{ url_for('create_payment') }}" method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="createPaymentModalLabel">Record New Payment</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="appointment_id" class="form-label">Appointment</label>
@@ -651,11 +650,103 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    // Show alert function
+    function showAlert(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+        alertDiv.role = 'alert';
+        alertDiv.style.zIndex = '1100';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        document.body.appendChild(alertDiv);
+        
+        // Auto dismiss after 5 seconds
+        setTimeout(() => {
+            const bsAlert = new bootstrap.Alert(alertDiv);
+            bsAlert.close();
+        }, 5000);
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize Bootstrap modals
+        const paymentModalEl = document.getElementById('createPaymentModal');
+        let paymentModal = null;
+        
+        if (paymentModalEl) {
+            paymentModal = new bootstrap.Modal(paymentModalEl);
+        }
+        
+        // Handle payment form submission
+        const paymentForm = document.getElementById('createPaymentForm');
+        if (paymentForm) {
+            paymentForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Find the submit button and save its original state
+                const submitBtn = this.querySelector('button[type="submit"]');
+                const originalBtnText = submitBtn.innerHTML;
+                
+                // Show loading state
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+                
+                // Get form data
+                const formData = new FormData(this);
+                
+                // Send AJAX request
+                fetch(this.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        // If the response is not ok, parse the error message
+                        return response.json().then(err => {
+                            throw new Error(err.message || 'Failed to record payment');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        // Show success message
+                        showAlert('Payment recorded successfully!', 'success');
+                        // Close modal
+                        const modalEl = document.getElementById('createPaymentModal');
+                        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        modal.hide();
+                        // Reload page to show updated data
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        // Show error message from server
+                        throw new Error(data.message || 'Failed to record payment');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert(error.message || 'An error occurred. Please try again.', 'danger');
+                })
+                .finally(() => {
+                    // Always re-enable the submit button
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                    }
+                });
+            });
+        }
         // Payment method toggle
         const paymentMethodSelect = document.getElementById('payment_method');
         if (paymentMethodSelect) {
@@ -719,28 +810,172 @@
         });
         
         function updatePaymentStatus(paymentId, status) {
+            const button = document.querySelector(`button[data-payment-id="${paymentId}"][data-status="${status}"]`);
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Updating...';
+            
             fetch("{{ url_for('update_payment_status') }}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: new URLSearchParams({
                     'payment_id': paymentId,
                     'status': status
                 })
             })
-            .then(response => {
-                if (response.ok) {
-                    window.location.reload();
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update the UI without reloading
+                    const statusBadge = document.querySelector(`#payment-${paymentId}-status`);
+                    if (statusBadge) {
+                        statusBadge.className = `badge ${data.status_badge} me-1`;
+                        statusBadge.textContent = data.new_status.replace('_', ' ');
+                    }
+                    
+                    // Update the button states
+                    const buttonGroup = document.querySelector(`#payment-${paymentId}-actions`);
+                    if (buttonGroup) {
+                        // Remove all active states first
+                        buttonGroup.querySelectorAll('.btn').forEach(btn => {
+                            btn.classList.remove('active');
+                        });
+                        // Set the clicked button as active
+                        button.classList.add('active');
+                    }
+                    
+                    // Show success message
+                    showAlert('Payment status updated successfully!', 'success');
                 } else {
-                    console.error('Failed to update payment status');
-                    alert('Failed to update payment status');
+                    showAlert(data.error || 'Failed to update payment status', 'danger');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred while updating payment status');
+                showAlert('An error occurred while updating payment status', 'danger');
+            })
+            .finally(() => {
+                // Restore button state
+                button.disabled = false;
+                button.innerHTML = originalText;
             });
+        }
+        
+        // Handle refund creation
+        const refundForms = document.querySelectorAll('.refund-form');
+        refundForms.forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const paymentId = this.dataset.paymentId;
+                const amount = parseFloat(this.querySelector('[name="amount"]').value);
+                const reason = this.querySelector('[name="reason"]').value || 'Refund requested';
+                const submitBtn = this.querySelector('button[type="submit"]');
+                const originalBtnText = submitBtn.innerHTML;
+                
+                // Show loading state
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+                
+                // Send refund request
+                fetch("{{ url_for('create_refund') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: new URLSearchParams({
+                        'payment_id': paymentId,
+                        'amount': amount,
+                        'reason': reason
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update the payment status and refund amount
+                        const statusBadge = document.querySelector(`#payment-${paymentId}-status`);
+                        if (statusBadge) {
+                            statusBadge.className = `badge ${data.payment.status_badge} me-1`;
+                            statusBadge.textContent = data.payment.status.replace('_', ' ');
+                        }
+                        
+                        // Update refunded amount
+                        const refundedAmount = document.querySelector(`#payment-${paymentId}-refunded`);
+                        if (refundedAmount) {
+                            refundedAmount.textContent = data.payment.refunded_amount.toFixed(2);
+                        }
+                        
+                        // Update remaining balance
+                        const remainingBalance = document.querySelector(`#payment-${paymentId}-balance`);
+                        if (remainingBalance) {
+                            remainingBalance.textContent = data.payment.remaining_balance.toFixed(2);
+                        }
+                        
+                        // Add new refund to the refunds list
+                        const refundsList = document.querySelector(`#refunds-list-${paymentId}`);
+                        if (refundsList) {
+                            const newRefund = document.createElement('div');
+                            newRefund.className = 'list-group-item';
+                            newRefund.innerHTML = `
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">Refund #${data.refund.id}</h6>
+                                    <small class="text-danger">-${data.refund.amount.toFixed(2)}</small>
+                                </div>
+                                <p class="mb-1">${data.refund.reason}</p>
+                                <small class="text-muted">Processed on ${new Date(data.refund.processed_at).toLocaleString()}</small>
+                            `;
+                            refundsList.prepend(newRefund);
+                        }
+                        
+                        // Close the refund modal
+                        const modal = bootstrap.Modal.getInstance(document.getElementById(`refundModal${paymentId}`));
+                        if (modal) modal.hide();
+                        
+                        // Reset the form
+                        this.reset();
+                        
+                        showAlert(data.message, 'success');
+                    } else {
+                        showAlert(data.error || 'Failed to process refund', 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert('An error occurred while processing refund', 'danger');
+                })
+                .finally(() => {
+                    // Restore button state
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnText;
+                });
+            });
+        });
+        
+        // Helper function to show alerts
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.role = 'alert';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            // Add to the alerts container if it exists, otherwise to the top of the content
+            const alertsContainer = document.getElementById('alerts-container') || document.querySelector('.content');
+            alertsContainer.prepend(alertDiv);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const bsAlert = new bootstrap.Alert(alertDiv);
+                bsAlert.close();
+            }, 5000);
         }
 
         // Initialize charts
@@ -833,6 +1068,11 @@
                 });
             }
         }
+        
+        // Initialize charts when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            initCharts();
+        });
 
         initCharts();
     });

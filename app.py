@@ -1,7 +1,7 @@
 import os
 import logging
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, abort, send_from_directory
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
@@ -1388,20 +1388,27 @@ def view_payment(payment_id):
                          patient=patient,
                          refunds=refunds)
 
-@app.route('/payments/<int:payment_id>/update_status', methods=['POST'])
+@app.route('/payments/update_status', methods=['POST'])
 @login_required
-def update_payment_status(payment_id):
-    """Update payment status"""
-    payment = db_ext.session.query(Payment).get_or_404(payment_id)
-    status = request.form.get('status')
-    notes = request.form.get('notes')
-    
-    if not status or status not in ['pending', 'completed', 'failed', 'refunded']:
-        flash('Invalid status provided.', 'danger')
-        return redirect(url_for('view_payment', payment_id=payment_id))
-    
+def update_payment_status():
+    """Update payment status via AJAX"""
     try:
+        payment_id = request.form.get('payment_id')
+        status = request.form.get('status')
+        notes = request.form.get('notes')
+        
+        if not payment_id or not status:
+            return jsonify({'success': False, 'error': 'Missing payment_id or status'}), 400
+            
+        payment = db_ext.session.query(Payment).get_or_404(payment_id)
+        
+        # Validate status
+        valid_statuses = ['pending', 'completed', 'failed', 'refunded', 'partially_refunded']
+        if status not in valid_statuses:
+            return jsonify({'success': False, 'error': 'Invalid status provided'}), 400
+    
         # Update payment status
+        previous_status = payment.status
         payment.status = status
         payment.notes = notes if notes else payment.notes
         
@@ -1425,53 +1432,75 @@ def update_payment_status(payment_id):
                 {
                     'payment_id': payment.id,
                     'amount': payment.amount,
-                    'previous_status': payment.status,
+                    'previous_status': previous_status,
                     'new_status': status
                 }
             )
         
-        flash(f'Payment status updated to {status}.', 'success')
+        return jsonify({
+            'success': True, 
+            'message': f'Payment status updated to {status}',
+            'new_status': status,
+            'status_badge': payment_status_badge(status)
+        })
         
     except Exception as e:
         db_ext.session.rollback()
         app.logger.error(f"Error updating payment status: {str(e)}")
-        flash('Failed to update payment status. Please try again.', 'danger')
-    
-    return redirect(url_for('view_payment', payment_id=payment_id))
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/payments/<int:payment_id>/refund', methods=['POST'])
+@app.route('/payments/refund', methods=['POST'])
 @login_required
-def create_refund(payment_id):
-    """Create a refund for a payment"""
-    payment = db_ext.session.query(Payment).get_or_404(payment_id)
-    
+def create_refund():
+    """Create a refund for a payment via AJAX"""
     try:
+        payment_id = request.form.get('payment_id')
         amount = float(request.form.get('amount', 0))
         reason = request.form.get('reason', 'Refund requested')
         
-        if amount <= 0 or amount > payment.remaining_balance:
-            flash('Invalid refund amount.', 'danger')
-            return redirect(url_for('view_payment', payment_id=payment_id))
+        if not payment_id:
+            return jsonify({'success': False, 'error': 'Missing payment_id'}), 400
+            
+        payment = db_ext.session.query(Payment).get_or_404(payment_id)
+        
+        # Calculate remaining balance
+        refunded_amount = sum(r.amount for r in payment.refunds if r.status == 'completed')
+        remaining_balance = payment.amount - refunded_amount
+        
+        # Validate amount
+        if amount <= 0 or amount > remaining_balance:
+            return jsonify({
+                'success': False, 
+                'error': f'Invalid amount. Must be between 0 and {remaining_balance}',
+                'remaining_balance': remaining_balance
+            }), 400
         
         # Create refund record
-        refund = PaymentRefund.create(
+        refund = PaymentRefund(
             payment_id=payment_id,
             amount=amount,
             reason=reason,
-            processed_by=current_user.id
+            status='completed',
+            processed_by=current_user.id,
+            processed_at=datetime.utcnow()
         )
+        db_ext.session.add(refund)
         
-        # In a real app, this would integrate with payment gateway
-        # For now, we'll simulate a successful refund
-        refund.update_status('completed')
-        
-        # Update payment status if fully refunded
-        if payment.remaining_balance <= 0:
+        # Update payment status based on remaining balance
+        new_balance = remaining_balance - amount
+        if new_balance <= 0:
             payment.status = 'refunded'
         else:
             payment.status = 'partially_refunded'
         
         db_ext.session.commit()
+        
+        # Update appointment payment status if fully refunded
+        if new_balance <= 0:
+            appointment = db_ext.session.query(Appointment).get(payment.appointment_id)
+            if appointment:
+                appointment.payment_status = 'refunded'
+                db_ext.session.commit()
         
         # Send refund confirmation
         try:
@@ -1479,16 +1508,35 @@ def create_refund(payment_id):
         except Exception as e:
             app.logger.error(f"Error sending refund confirmation: {str(e)}")
         
-        flash(f'Refund of {amount} processed successfully.', 'success')
+        # Get updated payment data
+        payment_data = {
+            'id': payment.id,
+            'status': payment.status,
+            'status_badge': payment_status_badge(payment.status),
+            'refunded_amount': refunded_amount + amount,
+            'remaining_balance': new_balance
+        }
         
-    except ValueError:
-        flash('Invalid amount specified.', 'danger')
+        return jsonify({
+            'success': True, 
+            'message': f'Refund of {amount} processed successfully.',
+            'payment': payment_data,
+            'refund': {
+                'id': refund.id,
+                'amount': refund.amount,
+                'reason': refund.reason,
+                'status': refund.status,
+                'processed_at': refund.processed_at.isoformat(),
+                'processed_by': refund.processed_by
+            }
+        })
+        
+    except ValueError as e:
+        return jsonify({'success': False, 'error': 'Invalid amount specified'}), 400
     except Exception as e:
         db_ext.session.rollback()
         app.logger.error(f"Refund processing error: {str(e)}")
-        flash('Failed to process refund. Please try again.', 'danger')
-    
-    return redirect(url_for('view_payment', payment_id=payment_id))
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/payments/<int:payment_id>/receipt')
 @login_required
@@ -1518,6 +1566,60 @@ def download_receipt(payment_id):
         flash('Failed to generate receipt. Please try again.', 'danger')
         return redirect(url_for('view_payment', payment_id=payment_id))
 
+
+# Helper function to send refund confirmation
+def send_refund_confirmation(payment_id, amount, reason):
+    """
+    Send a refund confirmation to the patient
+    In a real application, this would send an email or SMS
+    """
+    try:
+        payment = db_ext.session.query(Payment).get(payment_id)
+        if not payment:
+            app.logger.error(f"Payment {payment_id} not found for refund confirmation")
+            return False
+            
+        # In a real app, send an email or SMS here
+        app.logger.info(f"Refund confirmation sent for payment {payment_id}: {amount} - {reason}")
+        return True
+    except Exception as e:
+        app.logger.error(f"Error sending refund confirmation: {str(e)}")
+        return False
+
+# Helper function to generate payment receipt
+def generate_payment_receipt(payment_id):
+    """
+    Generate a PDF receipt for a payment
+    Returns the path to the generated receipt file
+    """
+    try:
+        payment = db_ext.session.query(Payment).get(payment_id)
+        if not payment:
+            app.logger.error(f"Payment {payment_id} not found for receipt generation")
+            return None
+            
+        # Create receipts directory if it doesn't exist
+        receipt_dir = os.path.join(app.static_folder, 'receipts')
+        os.makedirs(receipt_dir, exist_ok=True)
+        
+        # In a real app, generate a proper PDF receipt
+        receipt_path = os.path.join(receipt_dir, f'receipt_{payment_id}.pdf')
+        
+        # For now, just create a simple text file
+        with open(receipt_path, 'w') as f:
+            f.write(f"Receipt for Payment #{payment_id}\n")
+            f.write("=" * 30 + "\n\n")
+            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Amount: {payment.amount} {payment.currency or 'KES'}\n")
+            f.write(f"Payment Method: {payment.payment_method.upper()}\n")
+            f.write(f"Status: {payment.status.upper()}\n")
+            if payment.mpesa_reference:
+                f.write(f"M-Pesa Reference: {payment.mpesa_reference}\n")
+        
+        return receipt_path
+    except Exception as e:
+        app.logger.error(f"Error generating receipt: {str(e)}")
+        return None
 
 # Add payment-related template filters
 @app.template_filter('format_currency')
