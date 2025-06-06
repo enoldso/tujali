@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from config import config
 from extensions import db as db_ext, migrate
 # Import models after db initialization to avoid circular imports
-from models_sqlalchemy import User, Provider, Patient, Appointment, Message, Payment, Prescription, Pharmacy, HealthInfo
+from models_sqlalchemy import User, Provider, Patient, Appointment, Message, Payment, PaymentRefund, Prescription, Pharmacy, HealthInfo
 from forms import LoginForm, MessageForm, HealthInfoForm, HealthTipsForm, HealthEducationForm, RegistrationForm, WalkInPatientForm, PrescriptionForm
 from ussd_handler import ussd_callback
 import utils
@@ -587,18 +587,75 @@ def symptom_dashboard():
     recent_symptoms = defaultdict(lambda: {'count': 0, 'dates': set()})
     one_week_ago = datetime.utcnow() - timedelta(days=7)
 
-    for patient in patients:
-        if not hasattr(patient, 'symptoms') or not patient.symptoms:
+    # Get all health info records with category 'symptom'
+    symptom_records = HealthInfo.query.filter_by(category='symptom').all()
+    
+    for record in symptom_records:
+        # Extract symptom details from the content
+        content = record.content.lower()
+        symptom_text = ''
+        symptom_date = record.created_at
+        
+        # Extract symptom text from the content (first line is usually the main symptom)
+        lines = [line.strip() for line in content.split('\n') if line.strip()]
+        if lines:
+            symptom_text = lines[0].replace('chief complaint:', '').strip()
+            
+        if not symptom_text:
             continue
             
-        for symptom_entry in patient.symptoms:
-            symptom_text = symptom_entry.get('text', '').lower()
-            symptom_date = symptom_entry.get('date', datetime.utcnow())
+        # Extract severity and location from content
+        severity = 'Unknown'
+        location = 'Not specified'
+        for line in lines:
+            if 'severity:' in line:
+                severity = line.split('severity:')[-1].strip().capitalize()
+                if 'mild' in severity.lower():
+                    severity = 'Mild'
+                elif 'moderate' in severity.lower():
+                    severity = 'Moderate'
+                elif 'severe' in severity.lower():
+                    severity = 'Severe'
+            elif 'location:' in line:
+                location = line.split('location:')[-1].strip()
+        
+        # Add to symptom data with structure expected by the template
+        symptom_data.append({
+            'patient_id': 0,  # Default ID for walk-in patients
+            'patient_name': 'Walk-in Patient',
+            'symptom': symptom_text,
+            'normalized_name': symptom_text.split()[0] if symptom_text else 'unknown',
+            'category': 'other',  # Will be updated in the category detection
+            'confidence': 0.0,  # Will be calculated
+            'severity': severity,
+            'location': location,
+            'reported_via': 'Walk-in',
+            'date': symptom_date,
+            'patient_location': location,  # Using symptom location as fallback
+            'matched_keywords': [],  # Will be populated
+            'raw_data': {
+                'content': content,
+                'severity': severity,
+                'location': location,
+                'reported_via': 'Walk-in'
+            }
+        })
+        
+        # Update severity data
+        if severity in severity_data:
+            severity_data[severity] += 1
+        else:
+            severity_data['Unknown'] += 1
             
-            if not symptom_text:
-                continue
-                
-            # Determine symptom category and confidence
+        # Update location data with structure expected by the template
+        location_key = f"{location} (Patient: {location})"  # Using symptom location for both
+        location_data[location_key] = location_data.get(location_key, 0) + 1
+            
+        # Update recent symptoms for outbreak detection
+        if symptom_date >= one_week_ago:
+            recent_symptoms[symptom_text]['count'] += 1
+            recent_symptoms[symptom_text]['dates'].add(symptom_date.date())
+                    # Determine symptom category and confidence
             category = 'other'
             confidence = 0
             matched_keywords = []
@@ -618,47 +675,43 @@ def symptom_dashboard():
             # Normalize confidence score (0.0 to 1.0)
             confidence = min(1.0, confidence / 3) if confidence > 0 else 0
             
-            # Determine severity
-            severity = 'Unknown'
-            if any(word in symptom_text for word in ['severe', 'unbearable', 'extreme']):
-                severity = 'Severe'
-            elif any(word in symptom_text for word in ['moderate', 'medium', 'manageable']):
-                severity = 'Moderate'
-            elif any(word in symptom_text for word in ['mild', 'slight', 'minor']):
-                severity = 'Mild'
-                
-            severity_data[severity] = severity_data.get(severity, 0) + 1
-            category_counts[category] = category_counts.get(category, 0) + 1
-            
             # Track for outbreak detection
             symptom_key = f"{category}:{symptom_text.split()[0]}"  # First word as key
             recent_symptoms[symptom_key]['count'] += 1
             recent_symptoms[symptom_key]['dates'].add(symptom_date.date())
             
-            # Get symptom metadata with defaults
-            symptom_location = symptom_entry.get('location', 'Not specified')
-            symptom_severity = symptom_entry.get('severity', severity)  # Use detected severity as fallback
-            reported_via = symptom_entry.get('reported_via', 'unknown')
+            # Update severity and category counts
+            severity_data[severity] = severity_data.get(severity, 0) + 1
+            category_counts[category] = category_counts.get(category, 0) + 1
             
-            # Add to symptom data with enhanced metadata
+            # Get symptom metadata with defaults
+            reported_via = 'Walk-in'  # Default for walk-in patients
+            
+            # Add to symptom data with enhanced metadata for walk-in patients
             symptom_data.append({
-                'patient_id': patient.id,
-                'patient_name': patient.name,
+                'patient_id': 0,  # Default ID for walk-in patients
+                'patient_name': 'Walk-in Patient',
                 'symptom': symptom_text,
-                'normalized_name': symptom_text.split()[0],  # First word as normalized name
+                'normalized_name': symptom_text.split()[0] if symptom_text else 'unknown',
                 'category': category,
                 'confidence': confidence,
-                'severity': symptom_severity,
-                'location': symptom_location,
+                'severity': severity,
+                'location': location,
                 'reported_via': reported_via,
                 'date': symptom_date,
-                'patient_location': patient.location or 'Unknown',
+                'patient_location': location or 'Unknown',
                 'matched_keywords': matched_keywords,
-                'raw_data': dict(symptom_entry)  # Include all raw symptom data
+                'raw_data': {
+                    'content': content,
+                    'severity': severity,
+                    'location': location,
+                    'reported_via': reported_via,
+                    'date': symptom_date.isoformat() if symptom_date else None
+                }
             })
             
             # Update location data (using symptom-specific location if available)
-            location_key = f"{symptom_location} (Patient: {patient.location or 'Unknown'})"
+            location_key = f"{location} (Walk-in Patient)"
             location_data[location_key] = location_data.get(location_key, 0) + 1
             
             # Track reporting method
@@ -1203,135 +1256,292 @@ def payments():
     """Payment dashboard for managing appointment payments"""
     provider = Provider.get_by_user_id(current_user.id)
     
-    # Get all payment records
-    all_payments = Payment.get_all()
-    
-    # Enhance payment data with patient and appointment info
-    for payment in all_payments:
-        appointment = Appointment.get_by_id(payment.appointment_id)
-        if appointment:
-            payment.appointment = appointment
-            payment.patient = Patient.get_by_id(appointment.patient_id)
+    # Get all payment records with related data
+    all_payments = db_ext.session.query(Payment).join(
+        Appointment, Payment.appointment_id == Appointment.id
+    ).join(
+        Patient, Appointment.patient_id == Patient.id
+    ).order_by(Payment.created_at.desc()).all()
     
     # Get pending appointments (for creating new payments)
-    pending_appointments = []
-    all_appointments = Appointment.get_by_provider(provider.id)
-    for appointment in all_appointments:
-        if appointment.payment_status == 'pending' and appointment.price:
-            appointment.patient = Patient.get_by_id(appointment.patient_id)
-            pending_appointments.append(appointment)
+    pending_appointments = db_ext.session.query(Appointment).filter(
+        Appointment.provider_id == provider.id,
+        Appointment.payment_status == 'pending',
+        Appointment.price > 0
+    ).outerjoin(Patient).all()
     
     # Get payment summary statistics
     payment_summary = Payment.generate_payment_summary()
     
+    # Get recent refunds
+    recent_refunds = db_ext.session.query(PaymentRefund).join(
+        Payment, PaymentRefund.payment_id == Payment.id
+    ).filter(
+        PaymentRefund.status.in_(['pending', 'completed'])
+    ).order_by(PaymentRefund.created_at.desc()).limit(5).all()
+    
     return render_template('payments.html', 
-                          provider=provider,
-                          payments=all_payments,
-                          pending_appointments=pending_appointments,
-                          payment_summary=payment_summary)
+                         provider=provider,
+                         payments=all_payments,
+                         pending_appointments=pending_appointments,
+                         payment_summary=payment_summary,
+                         recent_refunds=recent_refunds)
 
 @app.route('/create_payment', methods=['POST'])
 @login_required
 def create_payment():
     """Create a new payment record"""
-    provider = Provider.get_by_user_id(current_user.id)
-    
-    appointment_id = request.form.get('appointment_id')
-    amount = request.form.get('amount')
-    payment_method = request.form.get('payment_method')
-    mpesa_reference = request.form.get('mpesa_reference')
-    
-    if not appointment_id or not amount:
-        flash('Appointment ID and amount are required.', 'danger')
+    try:
+        provider = Provider.get_by_user_id(current_user.id)
+        
+        appointment_id = request.form.get('appointment_id')
+        amount = float(request.form.get('amount', 0))
+        payment_method = request.form.get('payment_method', 'cash').lower()
+        mpesa_reference = request.form.get('mpesa_reference')
+        notes = request.form.get('notes')
+        
+        if not appointment_id or amount <= 0:
+            flash('Valid appointment ID and amount are required.', 'danger')
+            return redirect(url_for('payments'))
+        
+        appointment = Appointment.get_by_id(int(appointment_id))
+        if not appointment:
+            flash('Appointment not found.', 'danger')
+            return redirect(url_for('payments'))
+        
+        patient = Patient.get_by_id(appointment.patient_id)
+        if not patient:
+            flash('Patient not found.', 'danger')
+            return redirect(url_for('payments'))
+        
+        # Create payment record with additional fields
+        payment = Payment(
+            appointment_id=int(appointment_id),
+            amount=amount,
+            phone_number=patient.phone_number,
+            payment_method=payment_method,
+            status='pending',
+            notes=notes,
+            payment_metadata={
+                'created_by': current_user.id,
+                'payment_processor': 'manual'
+            }
+        )
+        
+        db_ext.session.add(payment)
+        db_ext.session.commit()
+        
+        # If M-Pesa reference is provided, mark as completed
+        if mpesa_reference and payment_method == 'mpesa':
+            payment.mpesa_reference = mpesa_reference
+            payment.status = 'completed'
+            payment.paid_at = datetime.utcnow()
+            
+            # Update appointment payment status
+            appointment.payment_status = 'completed'
+            db_ext.session.commit()
+            
+            flash('Payment recorded and marked as completed successfully!', 'success')
+            
+            flash('Payment recorded as completed with M-Pesa reference.', 'success')
+        else:
+            flash('Payment record created. Please update status once payment is confirmed.', 'info')
+        
+        # Track this interaction
+        UserInteraction.create(
+            patient.id,
+            'payment_created',
+            f'Payment of {amount} {payment.currency} recorded for appointment on {appointment.date}',
+            {
+                'payment_id': payment.id,
+                'amount': amount,
+                'method': payment_method,
+                'appointment_id': appointment.id
+            }
+        )
+        
+        return redirect(url_for('view_payment', payment_id=payment.id))
+        
+    except ValueError as e:
+        db.session.rollback()
+        app.logger.error(f"Payment creation error: {str(e)}")
+        flash('Invalid amount or payment details. Please check and try again.', 'danger')
         return redirect(url_for('payments'))
-    
-    appointment = Appointment.get_by_id(int(appointment_id))
-    if not appointment:
-        flash('Appointment not found.', 'danger')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Payment creation error: {str(e)}")
+        flash('An error occurred while creating the payment. Please try again.', 'danger')
         return redirect(url_for('payments'))
-    
-    patient = Patient.get_by_id(appointment.patient_id)
-    if not patient:
-        flash('Patient not found.', 'danger')
-        return redirect(url_for('payments'))
-    
-    # Create payment record
-    payment = Payment.create(
-        int(appointment_id),
-        float(amount),
-        patient.phone_number,
-        payment_method
-    )
-    
-    # Update payment reference if provided (for M-Pesa)
-    if payment_method == 'mpesa' and mpesa_reference:
-        Payment.update_status(payment.id, 'completed', mpesa_reference)
-        # Update appointment payment status
-        Appointment.update_status(appointment.id, appointment.status, 'completed')
-        flash('Payment recorded as completed with M-Pesa reference.', 'success')
-    else:
-        flash('Payment record created.', 'success')
-    
-    # Track this interaction
-    UserInteraction.create(
-        patient.id,
-        'payment',
-        f'Payment recorded for appointment on {appointment.date}',
-        {
-            'payment_id': payment.id,
-            'amount': float(amount),
-            'method': payment_method
-        }
-    )
-    
-    return redirect(url_for('payments'))
 
-@app.route('/update_payment_status', methods=['POST'])
+@app.route('/payments/<int:payment_id>')
 @login_required
-def update_payment_status():
-    """Update payment status"""
-    payment_id = request.form.get('payment_id')
-    status = request.form.get('status')
+def view_payment(payment_id):
+    """View payment details"""
+    payment = db_ext.session.query(Payment).get_or_404(payment_id)
+    appointment = db_ext.session.query(Appointment).get(payment.appointment_id)
+    patient = db_ext.session.query(Patient).get(appointment.patient_id) if appointment else None
+    refunds = db_ext.session.query(PaymentRefund).filter_by(payment_id=payment_id).all()
     
-    if not payment_id or not status:
-        flash('Payment ID and status are required.', 'danger')
-        return redirect(url_for('payments'))
-    
-    payment = Payment.get_by_id(int(payment_id))
-    if not payment:
-        flash('Payment not found.', 'danger')
-        return redirect(url_for('payments'))
-    
-    # Update payment status
-    success = Payment.update_status(int(payment_id), status)
-    
-    if success:
-        # Update appointment payment status
-        appointment = Appointment.get_by_id(payment.appointment_id)
-        if appointment:
-            Appointment.update_status(appointment.id, appointment.status, status)
-        
-        flash('Payment status updated successfully.', 'success')
-        
-        # Track this interaction if payment completed
-        if status == 'completed':
-            patient = Patient.get_by_id(appointment.patient_id) if appointment else None
-            if patient:
-                UserInteraction.create(
-                    patient.id,
-                    'payment',
-                    f'Payment completed for appointment on {appointment.date}',
-                    {
-                        'payment_id': payment.id,
-                        'amount': payment.amount,
-                        'method': payment.payment_method
-                    }
-                )
-    else:
-        flash('Failed to update payment status.', 'danger')
-    
-    return redirect(url_for('payments'))
+    return render_template('payment_details.html',
+                         payment=payment,
+                         appointment=appointment,
+                         patient=patient,
+                         refunds=refunds)
 
+@app.route('/payments/<int:payment_id>/update_status', methods=['POST'])
+@login_required
+def update_payment_status(payment_id):
+    """Update payment status"""
+    payment = db_ext.session.query(Payment).get_or_404(payment_id)
+    status = request.form.get('status')
+    notes = request.form.get('notes')
+    
+    if not status or status not in ['pending', 'completed', 'failed', 'refunded']:
+        flash('Invalid status provided.', 'danger')
+        return redirect(url_for('view_payment', payment_id=payment_id))
+    
+    try:
+        # Update payment status
+        payment.status = status
+        payment.notes = notes if notes else payment.notes
+        
+        # Update timestamps
+        if status == 'completed' and not payment.paid_at:
+            payment.paid_at = datetime.utcnow()
+        
+        # Update appointment payment status if applicable
+        appointment = db_ext.session.query(Appointment).get(payment.appointment_id)
+        if appointment:
+            appointment.payment_status = status
+        
+        db_ext.session.commit()
+        
+        # Track this interaction
+        if appointment and appointment.patient_id:
+            UserInteraction.create(
+                appointment.patient_id,
+                f'payment_{status}',
+                f'Payment status updated to {status} for payment {payment.id}',
+                {
+                    'payment_id': payment.id,
+                    'amount': payment.amount,
+                    'previous_status': payment.status,
+                    'new_status': status
+                }
+            )
+        
+        flash(f'Payment status updated to {status}.', 'success')
+        
+    except Exception as e:
+        db_ext.session.rollback()
+        app.logger.error(f"Error updating payment status: {str(e)}")
+        flash('Failed to update payment status. Please try again.', 'danger')
+    
+    return redirect(url_for('view_payment', payment_id=payment_id))
+
+@app.route('/payments/<int:payment_id>/refund', methods=['POST'])
+@login_required
+def create_refund(payment_id):
+    """Create a refund for a payment"""
+    payment = db_ext.session.query(Payment).get_or_404(payment_id)
+    
+    try:
+        amount = float(request.form.get('amount', 0))
+        reason = request.form.get('reason', 'Refund requested')
+        
+        if amount <= 0 or amount > payment.remaining_balance:
+            flash('Invalid refund amount.', 'danger')
+            return redirect(url_for('view_payment', payment_id=payment_id))
+        
+        # Create refund record
+        refund = PaymentRefund.create(
+            payment_id=payment_id,
+            amount=amount,
+            reason=reason,
+            processed_by=current_user.id
+        )
+        
+        # In a real app, this would integrate with payment gateway
+        # For now, we'll simulate a successful refund
+        refund.update_status('completed')
+        
+        # Update payment status if fully refunded
+        if payment.remaining_balance <= 0:
+            payment.status = 'refunded'
+        else:
+            payment.status = 'partially_refunded'
+        
+        db_ext.session.commit()
+        
+        # Send refund confirmation
+        try:
+            send_refund_confirmation(payment_id, amount, reason)
+        except Exception as e:
+            app.logger.error(f"Error sending refund confirmation: {str(e)}")
+        
+        flash(f'Refund of {amount} processed successfully.', 'success')
+        
+    except ValueError:
+        flash('Invalid amount specified.', 'danger')
+    except Exception as e:
+        db_ext.session.rollback()
+        app.logger.error(f"Refund processing error: {str(e)}")
+        flash('Failed to process refund. Please try again.', 'danger')
+    
+    return redirect(url_for('view_payment', payment_id=payment_id))
+
+@app.route('/payments/<int:payment_id>/receipt')
+@login_required
+def download_receipt(payment_id):
+    """Download payment receipt as PDF"""
+    payment = db_ext.session.query(Payment).get_or_404(payment_id)
+    
+    try:
+        receipt_path = generate_payment_receipt(payment.id)
+        if not receipt_path or not os.path.exists(receipt_path):
+            flash('Receipt not found. Please try again.', 'danger')
+            return redirect(url_for('view_payment', payment_id=payment_id))
+        
+        # Mark receipt as sent
+        payment.receipt_sent = True
+        payment.receipt_sent_at = datetime.utcnow()
+        db_ext.session.commit()
+        
+        return send_from_directory(
+            os.path.dirname(receipt_path),
+            os.path.basename(receipt_path),
+            as_attachment=True,
+            download_name=f'receipt_{payment_id}.pdf'
+        )
+    except Exception as e:
+        app.logger.error(f"Error generating receipt: {str(e)}")
+        flash('Failed to generate receipt. Please try again.', 'danger')
+        return redirect(url_for('view_payment', payment_id=payment_id))
+
+
+# Add payment-related template filters
+@app.template_filter('format_currency')
+def format_currency(amount, currency='KES'):
+    """Format currency for display"""
+    try:
+        return f"{currency} {float(amount):,.2f}"
+    except (ValueError, TypeError):
+        return f"{currency} 0.00"
+
+@app.template_filter('payment_status_badge')
+def payment_status_badge(status):
+    """Return a Bootstrap badge for payment status"""
+    status_classes = {
+        'pending': 'bg-warning',
+        'completed': 'bg-success',
+        'failed': 'bg-danger',
+        'refunded': 'bg-info',
+        'partially_refunded': 'bg-primary',
+        'cancelled': 'bg-secondary'
+    }
+    return status_classes.get(status.lower(), 'bg-secondary')
 
 if __name__ == '__main__':
+    # Create upload directories if they don't exist
+    os.makedirs('static/receipts', exist_ok=True)
     app.run(host='0.0.0.0', port=5000, debug=True)

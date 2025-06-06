@@ -12,36 +12,124 @@
         border-left: 4px solid var(--bs-primary);
     }
     .payment-pending {
-        border-left: 4px solid var(--bs-warning);
+        border-left: 4px solid #ffc107;
     }
     .payment-completed {
-        border-left: 4px solid var(--bs-success);
+        border-left: 4px solid #198754;
     }
     .payment-failed {
-        border-left: 4px solid var(--bs-danger);
+        border-left: 4px solid #dc3545;
     }
-    .payment-waived {
-        border-left: 4px solid var(--bs-info);
+    .payment-refunded {
+        border-left: 4px solid #0dcaf0;
+    }
+    .payment-partially_refunded {
+        border-left: 4px solid #6f42c1;
+    }
+    .badge-payment-status {
+        font-size: 0.8em;
+        padding: 0.35em 0.65em;
+    }
+    .payment-amount {
+        font-weight: 600;
+    }
+    .refund-amount {
+        color: #dc3545;
+        font-weight: 500;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col">
-        <h2 class="mb-3"><i data-feather="credit-card" class="me-2"></i> Payment Management</h2>
-        <p class="text-muted">Manage appointment payments with multiple payment methods including M-Pesa.</p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1"><i class="fas fa-credit-card me-2"></i> Payment Management</h2>
+        <p class="text-muted mb-0">Track and manage all payment transactions in one place</p>
+    </div>
+    <div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPaymentModal">
+            <i class="fas fa-plus me-2"></i>Record Payment
+        </button>
     </div>
 </div>
 
 <!-- Payment Summary Cards -->
 <div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card summary-card shadow-sm mb-3">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-start border-primary border-4 h-100 py-2">
             <div class="card-body">
-                <h6 class="card-subtitle mb-2 text-muted">Total Payments</h6>
-                <h3 class="card-title">{{ payment_summary.total_count }}</h3>
-                <p class="card-text text-success">{{ payment_summary.total_amount }} KSh</p>
+                <div class="row no-gutters align-items-center">
+                    <div class="col me-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Total Revenue</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ payment_summary.total_revenue|format_currency }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-start border-success border-4 h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col me-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Completed Payments</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ payment_summary.completed_count }}
+                            <small class="text-muted">({{ payment_summary.completed_amount|format_currency }})</small>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-start border-warning border-4 h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col me-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Pending Payments</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ payment_summary.pending_count }}
+                            <small class="text-muted">({{ payment_summary.pending_amount|format_currency }})</small>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-clock fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-start border-info border-4 h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col me-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Refunds</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ payment_summary.refunded_count }}
+                            <small class="text-muted">({{ payment_summary.refunded_amount|format_currency }})</small>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-undo-alt fa-2x text-gray-300"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -75,12 +163,11 @@
 </div>
 
 <!-- Payment Methods Summary Section -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card shadow-sm">
-            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Payment Methods Summary</h5>
-            </div>
+<!-- Payment Methods Summary -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Payment Methods</h5>
+    </div>
             <div class="card-body">
                 <div class="row">
                     <!-- M-Pesa Summary -->
@@ -185,20 +272,185 @@
     </div>
 </div>
 
+<!-- Recent Payments -->
 <div class="row">
-    <!-- Existing Payments -->
-    <div class="col-md-8">
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Payments</h5>
+                <a href="#" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Patient</th>
+                                <th>Appointment</th>
+                                <th>Method</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in payments[:5] %}
+                            <tr class="payment-{{ payment.status }}">
+                                <td>{{ payment.id }}</td>
+                                <td>
+                                    {% if payment.appointment and payment.appointment.patient %}
+                                        {{ payment.appointment.patient.name }}
+                                    {% else %}
+                                        Walk-in Patient
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if payment.appointment %}
+                                        {{ payment.appointment.service_type or 'Consultation' }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark">
+                                        {{ payment.payment_method|title }}
+                                    </span>
+                                </td>
+                                <td class="payment-amount">
+                                    {{ payment.amount|format_currency }}
+                                </td>
+                                <td>
+                                    <span class="badge badge-payment-status {{ payment.status|payment_status_badge }}">
+                                        {{ payment.status|title }}
+                                    </span>
+                                </td>
+                                <td>{{ payment.created_at.strftime('%b %d, %Y') }}</td>
+                                <td>
+                                    <a href="{{ url_for('view_payment', payment_id=payment.id) }}" 
+                                       class="btn btn-sm btn-outline-primary"
+                                       title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <div class="text-muted">No payment records found</div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Refunds -->
+        {% if recent_refunds %}
+        <div class="card shadow-sm">
+            <div class="card-header bg-transparent">
+                <h5 class="mb-0">Recent Refunds</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for refund in recent_refunds %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">
+                                    <a href="{{ url_for('view_payment', payment_id=refund.payment_id) }}" class="text-decoration-none">
+                                        Refund #{{ refund.id }}
+                                    </a>
+                                </h6>
+                                <small class="text-muted">
+                                    {{ refund.created_at.strftime('%b %d, %Y %I:%M %p') }}
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <div class="refund-amount">-{{ refund.amount|format_currency }}</div>
+                                <span class="badge {{ 'bg-success' if refund.status == 'completed' else 'bg-warning' }}">
+                                    {{ refund.status|title }}
+                                </span>
+                            </div>
+                        </div>
+                        {% if refund.reason %}
+                        <div class="mt-2 text-muted small">
+                            <i class="fas fa-comment-alt me-1"></i> {{ refund.reason|truncate(100) }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- Pending Appointments -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-transparent">
-                <h5 class="mb-0">Payment Records</h5>
+                <h5 class="mb-0">Pending Payments</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if pending_appointments %}
+                <div class="list-group list-group-flush">
+                    {% for appt in pending_appointments %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">
+                                    {% if appt.patient %}
+                                        {{ appt.patient.name }}
+                                    {% else %}
+                                        Walk-in Patient
+                                    {% endif %}
+                                </h6>
+                                <small class="text-muted">
+                                    {{ appt.date.strftime('%b %d, %I:%M %p') }}
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-bold">{{ appt.price|format_currency }}</div>
+                                <button class="btn btn-sm btn-outline-primary"
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#createPaymentModal"
+                                        data-appointment-id="{{ appt.id }}"
+                                        data-amount="{{ appt.price }}"
+                                        data-patient="{{ appt.patient.name if appt.patient else 'Walk-in Patient' }}">
+                                    Record Payment
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <div class="text-muted mb-2">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                    </div>
+                    <p class="mb-0">No pending payments</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Payment Methods Chart -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-transparent">
+                <h5 class="mb-0">Payment Methods</h5>
             </div>
             <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Patient</th>
+                <canvas id="paymentMethodsChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
                                 <th>Date</th>
                                 <th>Amount</th>
                                 <th>Method</th>
@@ -329,32 +581,140 @@
 </div>
 {% endblock %}
 
+<!-- Create Payment Modal -->
+<div class="modal fade" id="createPaymentModal" tabindex="-1" aria-labelledby="createPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('create_payment') }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createPaymentModalLabel">Record New Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="appointment_id" class="form-label">Appointment</label>
+                        <select class="form-select" id="appointment_id" name="appointment_id" required>
+                            <option value="">Select Appointment</option>
+                            {% for appt in pending_appointments %}
+                            <option value="{{ appt.id }}" 
+                                    data-amount="{{ appt.price }}"
+                                    data-patient="{{ appt.patient.name if appt.patient else 'Walk-in Patient' }}">
+                                {{ appt.patient.name if appt.patient else 'Walk-in Patient' }} - 
+                                {{ appt.date.strftime('%b %d, %I:%M %p') }} - 
+                                {{ appt.price|format_currency }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="patient_name" class="form-label">Patient</label>
+                        <input type="text" class="form-control" id="patient_name" readonly>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="amount" class="form-label">Amount</label>
+                            <div class="input-group">
+                                <span class="input-group-text">{{ config.get('CURRENCY', 'KES') }}</span>
+                                <input type="number" class="form-control" id="amount" name="amount" 
+                                       step="0.01" min="0" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="payment_method" class="form-label">Payment Method</label>
+                            <select class="form-select" id="payment_method" name="payment_method" required>
+                                <option value="mpesa">M-Pesa</option>
+                                <option value="cash">Cash</option>
+                                <option value="card">Credit/Debit Card</option>
+                                <option value="insurance">Insurance</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3" id="mpesaReferenceField" style="display: none;">
+                        <label for="mpesa_reference" class="form-label">M-Pesa Reference</label>
+                        <input type="text" class="form-control" id="mpesa_reference" name="mpesa_reference">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Record Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Update price field when appointment is selected
-        const appointmentSelect = document.getElementById('appointment_id');
-        const amountInput = document.getElementById('amount');
-        
-        if (appointmentSelect && amountInput) {
-            appointmentSelect.addEventListener('change', function() {
-                const selectedOption = this.options[this.selectedIndex];
-                if (selectedOption && selectedOption.dataset.price) {
-                    amountInput.value = selectedOption.dataset.price;
-                } else {
-                    amountInput.value = '';
+        // Payment method toggle
+        const paymentMethodSelect = document.getElementById('payment_method');
+        if (paymentMethodSelect) {
+            paymentMethodSelect.addEventListener('change', function() {
+                const mpesaField = document.getElementById('mpesaReferenceField');
+                if (mpesaField) {
+                    mpesaField.style.display = this.value === 'mpesa' ? 'block' : 'none';
                 }
             });
         }
-        
+
+        // Set amount and patient when appointment is selected
+        const appointmentSelect = document.getElementById('appointment_id');
+        if (appointmentSelect) {
+            appointmentSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption && selectedOption.value) {
+                    const amountField = document.getElementById('amount');
+                    const patientField = document.getElementById('patient_name');
+                    
+                    if (amountField) amountField.value = selectedOption.dataset.amount || '';
+                    if (patientField) patientField.value = selectedOption.dataset.patient || '';
+                }
+            });
+        }
+
+        // Handle modal show event to set values when opened via button
+        const createPaymentModal = document.getElementById('createPaymentModal');
+        if (createPaymentModal) {
+            createPaymentModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                if (button && button.dataset.appointmentId) {
+                    const select = document.getElementById('appointment_id');
+                    if (select) {
+                        select.value = button.dataset.appointmentId;
+                        
+                        // Trigger change event to update amount and patient
+                        const changeEvent = new Event('change');
+                        select.dispatchEvent(changeEvent);
+                        
+                        // Set amount if provided in button
+                        const amountField = document.getElementById('amount');
+                        if (amountField && button.dataset.amount) {
+                            amountField.value = button.dataset.amount;
+                        }
+                    }
+                }
+            });
+        }
+
         // Handle payment status updates
         const updateButtons = document.querySelectorAll('.update-payment');
         updateButtons.forEach(button => {
             button.addEventListener('click', function() {
                 const paymentId = this.dataset.paymentId;
                 const status = this.dataset.status;
-                updatePaymentStatus(paymentId, status);
+                if (paymentId && status) {
+                    updatePaymentStatus(paymentId, status);
+                }
             });
         });
         
@@ -382,80 +742,99 @@
                 alert('An error occurred while updating payment status');
             });
         }
-        
-        // Payment method chart
-        const methodsChart = document.getElementById('paymentMethodsChart');
-        if (methodsChart) {
-            new Chart(methodsChart, {
-                type: 'doughnut',
-                data: {
-                    labels: ['M-Pesa', 'Cash', 'Insurance'],
-                    datasets: [{
-                        data: [
-                            {{ payment_summary.payment_methods.mpesa.amount }}, 
-                            {{ payment_summary.payment_methods.cash.amount }}, 
-                            {{ payment_summary.payment_methods.insurance.amount }}
-                        ],
-                        backgroundColor: [
-                            '#09ab54',  // M-Pesa green
-                            '#3498db',  // Cash blue
-                            '#9b59b6'   // Insurance purple
-                        ],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
+
+        // Initialize charts
+        function initCharts() {
+            // Payment method chart
+            const methodsChart = document.getElementById('paymentMethodsChart');
+            if (methodsChart) {
+                const ctx = methodsChart.getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['M-Pesa', 'Cash', 'Card', 'Insurance', 'Bank Transfer'],
+                        datasets: [{
+                            data: [
+                                {{ payment_summary.payment_methods.get('mpesa', {}).get('amount', 0) }}, 
+                                {{ payment_summary.payment_methods.get('cash', {}).get('amount', 0) }},
+                                {{ payment_summary.payment_methods.get('card', {}).get('amount', 0) }},
+                                {{ payment_summary.payment_methods.get('insurance', {}).get('amount', 0) }},
+                                {{ payment_summary.payment_methods.get('bank_transfer', {}).get('amount', 0) }}
+                            ],
+                            backgroundColor: [
+                                '#09ab54',  // M-Pesa green
+                                '#3498db',  // Cash blue
+                                '#6f42c1',  // Card purple
+                                '#ffc107',  // Insurance yellow
+                                '#6c757d'   // Bank transfer gray
+                            ],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 15,
+                                    boxWidth: 12
+                                }
+                            }
                         },
-                        title: {
-                            display: true,
-                            text: 'Payment Method Distribution'
-                        }
+                        cutout: '70%',
+                        radius: '90%'
                     }
-                }
-            });
-        }
-        
-        // Payment status chart
-        const statusChart = document.getElementById('paymentStatusChart');
-        if (statusChart) {
-            new Chart(statusChart, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Completed', 'Pending', 'Failed'],
-                    datasets: [{
-                        data: [
-                            {{ payment_summary.completed_amount }}, 
-                            {{ payment_summary.pending_amount }}, 
-                            {{ payment_summary.failed_count }}
-                        ],
-                        backgroundColor: [
-                            '#28a745',  // Completed green
-                            '#ffc107',  // Pending yellow
-                            '#dc3545'   // Failed red
-                        ],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
+                });
+            }
+            
+            // Payment status chart
+            const statusChart = document.getElementById('paymentStatusChart');
+            if (statusChart) {
+                const ctx = statusChart.getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Completed', 'Pending', 'Failed', 'Refunded', 'Partially Refunded'],
+                        datasets: [{
+                            data: [
+                                {{ payment_summary.completed_amount or 0 }}, 
+                                {{ payment_summary.pending_amount or 0 }}, 
+                                {{ payment_summary.failed_amount or 0 }},
+                                {{ payment_summary.refunded_amount or 0 }},
+                                {{ payment_summary.partially_refunded_amount or 0 }}
+                            ],
+                            backgroundColor: [
+                                '#198754',  // Completed green
+                                '#ffc107',  // Pending yellow
+                                '#dc3545',  // Failed red
+                                '#0dcaf0',  // Refunded cyan
+                                '#6f42c1'   // Partially refunded purple
+                            ],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 15,
+                                    boxWidth: 12
+                                }
+                            }
                         },
-                        title: {
-                            display: true,
-                            text: 'Payment Status Distribution'
-                        }
+                        cutout: '70%',
+                        radius: '90%'
                     }
-                }
-            });
+                });
+            }
         }
+
+        initCharts();
     });
 </script>
 {% endblock %}

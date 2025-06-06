@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% block title %}Payment Details - {{ payment.id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Payment Details</h1>
+        <div>
+            <a href="{{ url_for('payments') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left fa-sm text-white-50"></i> Back to Payments
+            </a>
+            <a href="{{ url_for('download_receipt', payment_id=payment.id) }}" class="btn btn-primary">
+                <i class="fas fa-receipt fa-sm text-white-50"></i> Download Receipt
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        <!-- Payment Information -->
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Payment Information</h6>
+                    <span class="badge {{ payment.status|payment_status_badge }}">
+                        {{ payment.status|title }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="font-weight-bold">Payment Details</h5>
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th>Payment ID</th>
+                                    <td>#{{ payment.id }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Date</th>
+                                    <td>{{ payment.created_at.strftime('%B %d, %Y %I:%M %p') }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Amount</th>
+                                    <td class="font-weight-bold">{{ payment.amount|format_currency(payment.currency) }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Payment Method</th>
+                                    <td>{{ payment.payment_method|title }}</td>
+                                </tr>
+                                {% if payment.mpesa_reference %}
+                                <tr>
+                                    <th>Reference #</th>
+                                    <td>{{ payment.mpesa_reference }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if payment.paid_at %}
+                                <tr>
+                                    <th>Paid On</th>
+                                    <td>{{ payment.paid_at.strftime('%B %d, %Y %I:%M %p') }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="font-weight-bold">Appointment Details</h5>
+                            {% if appointment %}
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th>Appointment ID</th>
+                                    <td>#{{ appointment.id }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Date & Time</th>
+                                    <td>{{ appointment.date.strftime('%B %d, %Y %I:%M %p') }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Service</th>
+                                    <td>{{ appointment.service_type or 'General Consultation' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Status</th>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if appointment.status == 'completed' else 'warning' }}">
+                                            {{ appointment.status|title }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </table>
+                            {% else %}
+                            <p class="text-muted">No appointment linked to this payment.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Patient Information -->
+                    {% if patient %}
+                    <hr>
+                    <h5 class="font-weight-bold mb-3">Patient Information</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Name:</strong> {{ patient.name }}</p>
+                            <p class="mb-1"><strong>Email:</strong> {{ patient.email or 'N/A' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Phone:</strong> {{ patient.phone_number or 'N/A' }}</p>
+                            <p class="mb-1"><strong>Patient ID:</strong> {{ patient.id }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Notes -->
+                    {% if payment.notes %}
+                    <hr>
+                    <h5 class="font-weight-bold">Notes</h5>
+                    <div class="bg-light p-3 rounded">
+                        {{ payment.notes|nl2br }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Refund History -->
+            {% if refunds %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Refund History</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Reference</th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for refund in refunds %}
+                                <tr>
+                                    <td>{{ refund.created_at.strftime('%b %d, %Y') }}</td>
+                                    <td class="text-danger">-{{ refund.amount|format_currency(payment.currency) }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if refund.status == 'completed' else 'warning' }}">
+                                            {{ refund.status|title }}
+                                        </span>
+                                    </td>
+                                    <td>{{ refund.reference or 'N/A' }}</td>
+                                    <td>{{ refund.reason or 'N/A' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Actions & Status -->
+        <div class="col-lg-4">
+            <!-- Update Status -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Update Status</h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('update_payment_status', payment_id=payment.id) }}">
+                        <div class="form-group">
+                            <label for="status">Status</label>
+                            <select class="form-control" id="status" name="status" required>
+                                <option value="pending" {% if payment.status == 'pending' %}selected{% endif %}>Pending</option>
+                                <option value="completed" {% if payment.status == 'completed' %}selected{% endif %}>Completed</option>
+                                <option value="failed" {% if payment.status == 'failed' %}selected{% endif %}>Failed</option>
+                                <option value="refunded" {% if payment.status == 'refunded' %}selected{% endif %}>Refunded</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="notes">Notes (Optional)</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Add any notes about this status update"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Update Status</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Issue Refund -->
+            {% if payment.is_refundable and payment.remaining_balance > 0 %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Issue Refund</h6>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> 
+                        Maximum refundable amount: {{ payment.remaining_balance|format_currency(payment.currency) }}
+                    </div>
+                    <form method="POST" action="{{ url_for('create_refund', payment_id=payment.id) }}">
+                        <div class="form-group">
+                            <label for="amount">Amount</label>
+                            <input type="number" class="form-control" id="amount" name="amount" 
+                                   step="0.01" min="0.01" max="{{ payment.remaining_balance }}" 
+                                   value="{{ payment.remaining_balance }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="reason">Reason for Refund</label>
+                            <textarea class="form-control" id="reason" name="reason" rows="3" required 
+                                     placeholder="Please specify the reason for this refund"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-warning">Process Refund</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Payment Activity -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Payment Activity</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <div>
+                                <h6 class="mb-0">Payment Created</h6>
+                                <small class="text-muted">{{ payment.created_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+                            </div>
+                            <i class="fas fa-plus-circle text-primary"></i>
+                        </li>
+                        {% if payment.paid_at %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <div>
+                                <h6 class="mb-0">Marked as Paid</h6>
+                                <small class="text-muted">{{ payment.paid_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+                            </div>
+                            <i class="fas fa-check-circle text-success"></i>
+                        </li>
+                        {% endif %}
+                        {% if payment.receipt_sent_at %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <div>
+                                <h6 class="mb-0">Receipt Sent</h6>
+                                <small class="text-muted">{{ payment.receipt_sent_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+                            </div>
+                            <i class="fas fa-receipt text-info"></i>
+                        </li>
+                        {% endif %}
+                        {% if refunds %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <div>
+                                <h6 class="mb-0">{{ refunds|length }} Refund{% if refunds|length > 1 %}s{% endif %}</h6>
+                                <small class="text-muted">Total: -{{ payment.refunded_amount|format_currency(payment.currency) }}</small>
+                            </div>
+                            <i class="fas fa-undo-alt text-warning"></i>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-format currency input
+    document.addEventListener('DOMContentLoaded', function() {
+        const amountInput = document.getElementById('amount');
+        if (amountInput) {
+            amountInput.addEventListener('change', function() {
+                const max = parseFloat(amountInput.max);
+                const value = parseFloat(amountInput.value);
+                if (value > max) {
+                    amountInput.value = max.toFixed(2);
+                } else if (value < 0.01) {
+                    amountInput.value = '0.01';
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

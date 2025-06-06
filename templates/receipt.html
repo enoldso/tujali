@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Payment Receipt</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+        }
+        .header h1 {
+            color: #2c3e50;
+            margin: 0;
+        }
+        .receipt-details {
+            margin: 30px 0;
+        }
+        .receipt-details table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .receipt-details th, .receipt-details td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .receipt-details th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .total {
+            font-size: 1.2em;
+            font-weight: bold;
+            text-align: right;
+            margin-top: 20px;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #777;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.8em;
+        }
+        .status-completed {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-failed {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .logo {
+            max-width: 200px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Payment Receipt</h1>
+        <p>Receipt #{{ payment.id }}</p>
+        <p>Date: {{ payment.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+    </div>
+
+    <div class="receipt-details">
+        <h3>Billing Information</h3>
+        <table>
+            <tr>
+                <th>Patient Name</th>
+                <td>{{ patient.name if patient else 'N/A' }}</td>
+            </tr>
+            <tr>
+                <th>Appointment Date</th>
+                <td>{{ appointment.date.strftime('%Y-%m-%d') if appointment else 'N/A' }}</td>
+            </tr>
+            <tr>
+                <th>Service</th>
+                <td>{{ appointment.service_type if appointment and appointment.service_type else 'Consultation' }}</td>
+            </tr>
+            <tr>
+                <th>Payment Method</th>
+                <td>{{ payment.payment_method|title }}</td>
+            </tr>
+            {% if payment.mpesa_reference %}
+            <tr>
+                <th>Reference Number</th>
+                <td>{{ payment.mpesa_reference }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+                <th>Status</th>
+                <td>
+                    <span class="status status-{{ payment.status }}">
+                        {{ payment.status|title }}
+                    </span>
+                </td>
+            </tr>
+        </table>
+
+        <h3>Payment Details</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Amount (KES)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Consultation Fee</td>
+                    <td>{{ "%.2f"|format(payment.amount) }}</td>
+                </tr>
+                {% if payment.amount < 0 %}
+                <tr>
+                    <td><strong>Refund Amount</strong></td>
+                    <td><strong>{{ "%.2f"|format(-payment.amount) }}</strong></td>
+                </tr>
+                {% endif %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th>Total</th>
+                    <th>{{ "%.2f"|format(payment.amount) if payment.amount >= 0 else "%.2f"|format(-payment.amount) }}</th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="footer">
+        <p>Thank you for choosing our services.</p>
+        <p>For any inquiries, please contact our support team.</p>
+        <p>This is an automated receipt. No signature required.</p>
+    </div>
+</body>
+</html>

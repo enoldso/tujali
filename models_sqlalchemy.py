@@ -3,6 +3,8 @@ from extensions import db
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import relationship
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -340,10 +342,49 @@ class Payment(db.Model):
     amount = db.Column(db.Float, nullable=False)
     phone_number = db.Column(db.String(20))
     mpesa_reference = db.Column(db.String(50))
-    status = db.Column(db.String(20), default='pending')  # pending, completed, failed
-    payment_method = db.Column(db.String(20), default='mpesa')
+    status = db.Column(db.String(20), default='pending')  # pending, completed, failed, refunded, partially_refunded
+    payment_method = db.Column(db.String(20), default='mpesa')  # mpesa, cash, card, insurance, bank_transfer
+    currency = db.Column(db.String(3), default='KES')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     paid_at = db.Column(db.DateTime)
+    receipt_sent = db.Column(db.Boolean, default=False)
+    receipt_sent_at = db.Column(db.DateTime)
+    notes = db.Column(db.Text)
+    payment_metadata = db.Column('metadata', JSONB)  # Store additional payment gateway response data
+    
+    # Relationships
+    refunds = db.relationship('PaymentRefund', backref='payment', lazy=True)
+    
+    def __init__(self, **kwargs):
+        super(Payment, self).__init__(**kwargs)
+        if not self.payment_metadata:
+            self.payment_metadata = {}
+    
+    @property
+    def is_refundable(self):
+        """Check if payment can be refunded"""
+        return self.status == 'completed' and self.amount > 0
+    
+    @property
+    def refunded_amount(self):
+        """Get total amount refunded"""
+        return sum(refund.amount for refund in self.refunds if refund.status == 'completed')
+    
+    @property
+    def remaining_balance(self):
+        """Get remaining balance that can be refunded"""
+        return self.amount - self.refunded_amount
+    
+    def update_status(self, status, reference=None):
+        """Update payment status and set timestamps"""
+        self.status = status
+        if status == 'completed' and not self.paid_at:
+            self.paid_at = datetime.utcnow()
+        if reference and not self.mpesa_reference:
+            self.mpesa_reference = reference
+        db.session.commit()
+        return True
     
     @classmethod
     def get_all(cls):
@@ -402,11 +443,29 @@ class Payment(db.Model):
             'completed_amount': 0.0,
             'pending_count': 0,
             'completed_count': 0,
-            'failed_count': 0
+            'failed_count': 0,
+            'refunded_amount': 0.0,
+            'refunded_count': 0
         }
         
         # Get all payments grouped by status
         payments = cls.query.all()
+        
+        # Get all refunds to calculate refunded amounts
+        refunds = db.session.query(
+            PaymentRefund.payment_id,
+            db.func.sum(PaymentRefund.amount).label('total_refunded')
+        ).filter(
+            PaymentRefund.status == 'completed'
+        ).group_by(PaymentRefund.payment_id).all()
+        
+        # Create a dictionary of payment_id to total refunded amount
+        refunds_dict = {refund.payment_id: float(refund.total_refunded) for refund in refunds}
+        
+        # Calculate total refunded amount and count
+        total_refunded = sum(refunds_dict.values())
+        summary['refunded_amount'] = total_refunded
+        summary['refunded_count'] = len(refunds_dict)
         
         for payment in payments:
             amount = float(payment.amount or 0)
@@ -435,6 +494,49 @@ class Payment(db.Model):
         summary['total_revenue'] = summary['completed_amount']
         
         return summary
+
+class PaymentRefund(db.Model):
+    __tablename__ = 'payment_refunds'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    payment_id = db.Column(db.Integer, ForeignKey('payments.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    reason = db.Column(db.Text)
+    status = db.Column(db.String(20), default='pending')  # pending, completed, failed
+    processed_by = db.Column(db.Integer, ForeignKey('users.id'))
+    reference = db.Column(db.String(50))  # External reference/ID from payment processor
+    refund_metadata = db.Column('metadata', JSONB)  # Store additional refund details
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    processed_at = db.Column(db.DateTime)
+    
+    # Relationships
+    processor = relationship('User')
+    
+    @classmethod
+    def create(cls, payment_id, amount, reason=None, processed_by=None, reference=None):
+        """Create a new refund record"""
+        refund = cls(
+            payment_id=payment_id,
+            amount=amount,
+            reason=reason,
+            processed_by=processed_by,
+            reference=reference,
+            status='pending'
+        )
+        db.session.add(refund)
+        db.session.commit()
+        return refund
+    
+    def update_status(self, status, reference=None):
+        """Update refund status"""
+        self.status = status
+        if status == 'completed' and not self.processed_at:
+            self.processed_at = datetime.utcnow()
+        if reference and not self.reference:
+            self.reference = reference
+        db.session.commit()
+        return True
+
 
 class Message(db.Model):
     __tablename__ = 'messages'

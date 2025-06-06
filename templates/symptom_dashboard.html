@@ -409,74 +409,92 @@
             <tbody>
               {% if symptom_data %}
                 {% for symptom in symptom_data %}
-              <tr class="symptom-row category-{{ symptom.category }}" data-category="{{ symptom.category }}" data-severity="{{ symptom.severity }}" data-location="{{ symptom.location|lower }}" data-date="{{ symptom.date.strftime('%Y-%m-%d') if symptom.date else '' }}">
+              <tr class="symptom-row category-{{ symptom.category|default('other') }}" 
+                  data-category="{{ symptom.category|default('other') }}" 
+                  data-severity="{{ symptom.severity|lower|default('unknown') }}" 
+                  data-location="{{ (symptom.location|default('unknown'))|lower }}" 
+                  data-date="{{ symptom.date.strftime('%Y-%m-%d') if symptom.date else '' }}">
                 <td>
                   <div class="d-flex align-items-center">
                     <div class="me-2">
                       <i class="bi bi-person-circle"></i>
                     </div>
                     <div>
-                      <div class="fw-bold">{{ symptom.patient_name }}</div>
-                      <small class="text-muted">ID: {{ symptom.patient_id }}</small>
+                      <div class="fw-medium">{{ symptom.patient_name|default('Walk-in Patient') }}</div>
+                      <small class="text-muted">ID: {{ symptom.patient_id|default('N/A') }}</small>
                     </div>
                   </div>
                 </td>
                 <td>
-                  <div class="symptom-text fw-bold">{{ symptom.symptom|truncate(50) }}</div>
-                  {% if symptom.matched_keywords %}
-                  <div class="small text-muted">
-                    <i class="bi bi-tags"></i> {{ symptom.matched_keywords|join(', ') }}
+                  <div class="d-flex align-items-center">
+                    {% set severity = symptom.severity|default('Unknown') %}
+                    <span class="badge bg-{{ 'danger' if severity|lower == 'severe' else 'warning' if severity|lower == 'moderate' else 'info' if severity|lower == 'mild' else 'secondary' }} me-2">
+                      <i class="bi bi-{{ 'exclamation-triangle-fill' if severity|lower == 'severe' else 'exclamation-circle' if severity|lower == 'moderate' else 'info-circle' if severity|lower == 'mild' else 'question-circle' }}"></i>
+                    </span>
+                    {{ symptom.symptom|default('Unknown symptom') }}
                   </div>
-                  {% endif %}
                 </td>
                 <td class="details-cell">
                   <button class="btn btn-sm btn-outline-secondary toggle-details" data-bs-toggle="collapse" data-bs-target="#details-{{ loop.index }}">
                     <i class="bi bi-chevron-down"></i>
                   </button>
-                  <div id="details-{{ loop.index }}" class="collapse">
-                    <div class="small mt-2">
-                      <div><i class="bi bi-geo-alt"></i> <strong>Location:</strong> {{ symptom.location or 'Not specified' }}</div>
-                      <div><i class="bi bi-clock-history"></i> <strong>Reported via:</strong> {{ symptom.reported_via|title }}</div>
-                      {% if symptom.raw_data %}
-                        <div class="mt-1">
-                          <button class="btn btn-sm btn-link p-0 text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#rawData-{{ loop.index }}">
-                            <i class="bi bi-code-slash"></i> View raw data
-                          </button>
-                          <div id="rawData-{{ loop.index }}" class="collapse">
-                            <pre class="small bg-light p-2 mt-2">{{ symptom.raw_data|tojson(indent=2) }}</pre>
+                </td>
+              </tr>
+              <tr class="collapse" id="details-{{ loop.index }}">
+                <td colspan="7" class="bg-light">
+                  <div class="p-3">
+                    <div class="row">
+                      <div class="col-md-6">
+                        <h6>Details</h6>
+                        <dl class="row mb-0">
+                          <dt class="col-sm-4">Category</dt>
+                          <dd class="col-sm-8">
+                            <span class="badge bg-{{ 'primary' if symptom.category == 'respiratory' else 'danger' if symptom.category == 'fever' else 'success' if symptom.category == 'gastrointestinal' else 'warning' if symptom.category == 'pain' else 'info' if symptom.category == 'fatigue' else 'secondary' }}">
+                              {{ symptom.category|default('other')|title }}
+                            </span>
+                          </dd>
+                          <dt class="col-sm-4">Severity</dt>
+                          <dd class="col-sm-8">
+                            <span class="badge bg-{{ 'danger' if symptom.severity|lower == 'severe' else 'warning' if symptom.severity|lower == 'moderate' else 'info' if symptom.severity|lower == 'mild' else 'secondary' }}">
+                              {{ symptom.severity|default('Unknown') }}
+                            </span>
+                          </dd>
+                          <dt class="col-sm-4">Location</dt>
+                          <dd class="col-sm-8">{{ symptom.location|default('Not specified') }}</dd>
+                          <dt class="col-sm-4">Reported Via</dt>
+                          <dd class="col-sm-8">
+                            <span class="badge bg-{{ 'primary' if symptom.reported_via|lower == 'ussd' else 'success' if symptom.reported_via|lower == 'web' else 'info' if symptom.reported_via|lower == 'app' else 'secondary' }}">
+                              {{ symptom.reported_via|default('Unknown') }}
+                            </span>
+                          </dd>
+                          <dt class="col-sm-4">Date Reported</dt>
+                          <dd class="col-sm-8">{{ symptom.date.strftime('%Y-%m-%d %H:%M') if symptom.date else 'Unknown' }}</dd>
+                        </dl>
+                      </div>
+                      <div class="col-md-6">
+                        <h6>Additional Information</h6>
+                        <div class="mb-3">
+                          <div class="fw-bold mb-1">Details:</div>
+                          <div class="p-2 bg-white border rounded">
+                            {% if symptom.raw_data and symptom.raw_data.content %}
+                              {% for line in symptom.raw_data.content.split('\n') %}
+                                {{ line }}<br>
+                              {% endfor %}
+                            {% else %}
+                              No additional details available
+                            {% endif %}
                           </div>
                         </div>
-                      {% endif %}
+                        <div class="d-flex justify-content-end">
+                          <button class="btn btn-sm btn-outline-primary me-2">
+                            <i class="bi bi-chat-dots"></i> Follow Up
+                          </button>
+                          <button class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-clipboard-plus"></i> Add to Chart
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td>
-                  <span class="badge rounded-pill category-badge" style="background-color: {{ symptom_categories[symptom.category].color if symptom.category in symptom_categories else '#6c757d' }};">
-                    <i class="bi bi-{{ symptom_categories[symptom.category].icon if symptom.category in symptom_categories else 'tag' }}"></i>
-                    {{ symptom.category|capitalize }}
-                  </span>
-                </td>
-                <td>
-                  <span class="badge rounded-pill severity-{{ symptom.severity|lower }}">
-                    <i class="bi bi-{{ 'check-circle' if symptom.severity == 'Mild' else 'exclamation-triangle' if symptom.severity == 'Moderate' else 'exclamation-octagon' if symptom.severity == 'Severe' else 'question-circle' }}"></i>
-                    {{ symptom.severity }}
-                  </span>
-                </td>
-                <td>
-                  <span class="badge bg-light text-dark">
-                    <i class="bi bi-{{ 'phone' if symptom.reported_via == 'ussd' else 'person' if symptom.reported_via == 'walkin' else 'globe' }}"></i>
-                    {{ symptom.reported_via|title }}
-                  </span>
-                </td>
-                <td>{{ symptom.date.strftime('%Y-%m-%d %H:%M') if symptom.date else 'N/A' }}</td>
-                <td>
-                  <div class="btn-group btn-group-sm" role="group">
-                    <button class="btn btn-outline-primary view-details" data-bs-toggle="modal" data-bs-target="#symptomDetailModal" data-symptom='{{ symptom|tojson }}' title="View Details">
-                      <i class="bi bi-eye"></i>
-                    </button>
-                    <a href="{{ url_for('patient_detail', patient_id=symptom.patient_id) }}" class="btn btn-outline-secondary" title="View Patient">
-                      <i class="bi bi-person-lines"></i>
-                    </a>
                   </div>
                 </td>
               </tr>
