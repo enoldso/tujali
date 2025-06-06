@@ -1,6 +1,7 @@
+from datetime import datetime
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField, SelectField, IntegerField, SelectMultipleField, FieldList, FormField, BooleanField
-from wtforms.validators import DataRequired, Length, Email, Optional, EqualTo, ValidationError, NumberRange
+from wtforms import StringField, PasswordField, SubmitField, TextAreaField, SelectField, IntegerField, SelectMultipleField, FieldList, FormField, BooleanField, DecimalField, HiddenField, DateTimeField
+from wtforms.validators import DataRequired, Length, Email, Optional, EqualTo, ValidationError, NumberRange, InputRequired
 
 class RegistrationForm(FlaskForm):
     """Registration form for new healthcare providers"""
@@ -230,3 +231,57 @@ class PrescriptionForm(FlaskForm):
             return False
             
         return True
+
+
+class LabResultForm(FlaskForm):
+    """Form for creating and updating lab results"""
+    patient_id = SelectField('Patient', coerce=int, validators=[DataRequired()])
+    test_name = StringField('Test Name', validators=[DataRequired()])
+    test_type = SelectField('Test Type', choices=[
+        ('blood', 'Blood Test'),
+        ('urine', 'Urine Test'),
+        ('stool', 'Stool Test'),
+        ('imaging', 'Imaging'),
+        ('microbiology', 'Microbiology'),
+        ('pathology', 'Pathology'),
+        ('genetic', 'Genetic Test'),
+        ('other', 'Other')
+    ], validators=[DataRequired()])
+    test_date = DateTimeField('Test Date', format='%Y-%m-%dT%H:%M', 
+                            default=lambda: datetime.now(),
+                            validators=[DataRequired()])
+    notes = TextAreaField('Notes', validators=[Optional()])
+    urgent = BooleanField('Mark as Urgent')
+    submit = SubmitField('Save Test Order')
+
+    def __init__(self, *args, **kwargs):
+        super(LabResultForm, self).__init__(*args, **kwargs)
+        # Populate patient choices in the route after form creation
+        self.patient_id.choices = []
+
+
+class PaymentForm(FlaskForm):
+    """Form for recording payments"""
+    appointment_id = SelectField('Appointment', coerce=int, validators=[DataRequired()])
+    amount = DecimalField('Amount', places=2, validators=[
+        InputRequired(), 
+        NumberRange(min=0.01, message='Amount must be greater than 0')
+    ])
+    payment_method = SelectField('Payment Method', choices=[
+        ('mpesa', 'M-Pesa'),
+        ('cash', 'Cash'),
+        ('card', 'Credit/Debit Card'),
+        ('insurance', 'Insurance'),
+        ('bank_transfer', 'Bank Transfer')
+    ], validators=[DataRequired()])
+    mpesa_reference = StringField('M-Pesa Reference', validators=[
+        Optional(),
+        Length(max=50)
+    ], 
+    render_kw={"placeholder": "e.g., M12345ABC"})
+    notes = TextAreaField('Notes', validators=[Optional()])
+    submit = SubmitField('Record Payment')
+    
+    def __init__(self, *args, **kwargs):
+        super(PaymentForm, self).__init__(*args, **kwargs)
+        self.appointment_id.choices = []  # Will be populated in the route

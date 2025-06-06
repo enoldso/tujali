@@ -8,10 +8,12 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 from config import config
-from extensions import db as db_ext, migrate
+from extensions import db as db_ext, migrate, db
 # Import models after db initialization to avoid circular imports
-from models_sqlalchemy import User, Provider, Patient, Appointment, Message, Payment, PaymentRefund, Prescription, Pharmacy, HealthInfo, UserInteraction
-from forms import LoginForm, MessageForm, HealthInfoForm, HealthTipsForm, HealthEducationForm, RegistrationForm, WalkInPatientForm, PrescriptionForm
+from models_sqlalchemy import User, Provider, Patient, Appointment, Message, Payment, PaymentRefund, Prescription, Pharmacy, HealthInfo, UserInteraction, LabResult
+from forms import (LoginForm, MessageForm, HealthInfoForm, HealthTipsForm, 
+                 HealthEducationForm, RegistrationForm, WalkInPatientForm, 
+                 PrescriptionForm, PaymentForm, LabResultForm)
 from ussd_handler import ussd_callback
 import utils
 import ai_service
@@ -152,41 +154,49 @@ def register():
             return render_template('register.html', form=form)
             
         try:
-            # Create new user
-            user_id = len(db['users']) + 1
-            password_hash = f"hashed_{form.password.data}"  # Simple hashing for demo
-            
+            # Create new user with hashed password
             user = User(
-                id=user_id,
                 username=form.username.data,
-                email=form.email.data,
-                password_hash=password_hash
+                email=form.email.data
             )
-            db['users'].append(user)
+            user.set_password(form.password.data)  # This will hash the password
+            
+            # Add user to database session
+            db_ext.session.add(user)
             
             # Create provider profile
-            provider_id = len(db['providers']) + 1
             provider = Provider(
-                id=provider_id,
-                user_id=user_id,
+                user=user,  # This sets up the relationship
                 name=form.full_name.data,
-                email=form.email.data,
                 specialization=form.specialization.data,
                 license_number=form.license_number.data,
-                languages=", ".join(form.languages.data) if isinstance(form.languages.data, list) else form.languages.data,
+                languages=form.languages.data if isinstance(form.languages.data, list) else [form.languages.data],
                 location=form.location.data,
                 coordinates=None  # Could be set using geocoding in a real app
             )
-            db['providers'].append(provider)
+            
+            # Add provider to database session
+            db_ext.session.add(provider)
+            
+            # Commit both user and provider to the database
+            db_ext.session.commit()
             
             flash('Registration successful! You can now log in.', 'success')
-            logger.info(f"New provider registered: {user.username} (ID: {user_id})")
+            logger.info(f"New provider registered: {user.username} (ID: {user.id})")
             return redirect(url_for('login'))
             
         except Exception as e:
-            logger.error(f"Error during registration: {str(e)}")
-            logger.exception("Registration error:")
-            flash('An error occurred during registration. Please try again.', 'danger')
+            db_ext.session.rollback()  # Rollback in case of error
+            # Log the full error details including traceback
+            logger.error("Error during registration:")
+            logger.exception(e)  # This will log the full traceback
+            # Log form data (without password) for debugging
+            form_data = {k: v for k, v in form.data.items() if k != 'password' and k != 'confirm_password'}
+            logger.error(f"Form data: {form_data}")
+            # Log SQLAlchemy session state
+            logger.error(f"Session new: {db_ext.session.new}")
+            logger.error(f"Session dirty: {db_ext.session.dirty}")
+            flash(f'An error occurred during registration: {str(e)}', 'danger')
     
     return render_template('register.html', form=form)
 
@@ -1625,11 +1635,166 @@ def share_health_tips_with_tracking(patient_id):
 app.view_functions['share_health_tips'] = share_health_tips_with_tracking
 
 # Payment routes
-@app.route('/payments')
+@app.route('/lab-results')
+@login_required
+def lab_results():
+    """Lab results dashboard"""
+    provider = Provider.get_by_user_id(current_user.id)
+    
+    # Get recent lab results
+    recent_results = LabResult.get_by_provider(provider.id, limit=10)
+    
+    # Get counts by status
+    pending_count = LabResult.query.filter_by(provider_id=provider.id, status='pending').count()
+    completed_count = LabResult.query.filter_by(provider_id=provider.id, status='completed').count()
+    abnormal_count = LabResult.query.filter_by(provider_id=provider.id, is_abnormal=True).count()
+    
+    # Get test type distribution
+    test_types = db_ext.session.query(
+        LabResult.test_type,
+        db_ext.func.count(LabResult.id).label('count')
+    ).filter_by(provider_id=provider.id).group_by(LabResult.test_type).all()
+    
+    return render_template(
+        'lab_results.html',
+        provider=provider,
+        recent_results=recent_results,
+        pending_count=pending_count,
+        completed_count=completed_count,
+        abnormal_count=abnormal_count,
+        test_types=test_types
+    )
+
+
+@app.route('/lab-results/<int:result_id>')
+@login_required
+def view_lab_result(result_id):
+    """View a specific lab result"""
+    result = LabResult.query.get_or_404(result_id)
+    provider = Provider.get_by_user_id(current_user.id)
+    
+    # Ensure the provider has access to this result
+    if result.provider_id != provider.id:
+        abort(403)
+    
+    return render_template('view_lab_result.html', result=result, provider=provider)
+
+
+@app.route('/lab-results/patient/<int:patient_id>')
+@login_required
+def patient_lab_results(patient_id):
+    """View all lab results for a specific patient"""
+    provider = Provider.get_by_user_id(current_user.id)
+    patient = Patient.query.get_or_404(patient_id)
+    
+    # Get all results for this patient ordered by test date
+    results = LabResult.query.filter_by(
+        patient_id=patient_id,
+        provider_id=provider.id
+    ).order_by(LabResult.test_date.desc()).all()
+    
+    return render_template(
+        'patient_lab_results.html',
+        provider=provider,
+        patient=patient,
+        results=results
+    )
+
+
+@app.route('/lab-results/new', methods=['GET', 'POST'])
+@login_required
+def new_lab_result():
+    """Create a new lab result"""
+    provider = Provider.get_by_user_id(current_user.id)
+    form = LabResultForm()
+    
+    # Populate patient choices
+    form.patient_id.choices = [(p.id, f"{p.name} ({p.phone_number})") for p in Patient.query.all()]
+    
+    if form.validate_on_submit():
+        try:
+            # Create new lab result
+            result = LabResult(
+                patient_id=form.patient_id.data,
+                provider_id=provider.id,
+                test_name=form.test_name.data,
+                test_type=form.test_type.data,
+                test_date=form.test_date.data,
+                notes=form.notes.data,
+                status='pending',
+                is_abnormal=False
+            )
+            
+            db_ext.session.add(result)
+            db_ext.session.commit()
+            
+            flash('Lab test created successfully!', 'success')
+            return redirect(url_for('view_lab_result', result_id=result.id))
+            
+        except Exception as e:
+            db_ext.session.rollback()
+            logger.error(f"Error creating lab result: {str(e)}")
+            flash('An error occurred while creating the lab test. Please try again.', 'danger')
+    
+    return render_template('new_lab_result.html', 
+                         provider=provider,
+                         form=form,
+                         now=datetime.utcnow())
+
+
+@app.route('/lab-results/<int:result_id>/update', methods=['POST'])
+@login_required
+def update_lab_result(result_id):
+    """Update lab result (AJAX endpoint)"""
+    if not request.is_json:
+        return jsonify({'success': False, 'error': 'Invalid request'}), 400
+    
+    try:
+        result = LabResult.query.get_or_404(result_id)
+        provider = Provider.get_by_user_id(current_user.id)
+        
+        # Ensure the provider has access to this result
+        if result.provider_id != provider.id:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
+        data = request.get_json()
+        
+        # Update result data
+        if 'results' in data:
+            result.results = data['results']
+        if 'status' in data:
+            result.status = data['status']
+        if 'is_abnormal' in data:
+            result.is_abnormal = data['is_abnormal']
+        if 'notes' in data:
+            result.notes = data['notes']
+        
+        # Update result date if completing the test
+        if data.get('status') == 'completed' and not result.result_date:
+            result.result_date = datetime.utcnow()
+        
+        db_ext.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Lab result updated successfully',
+            'result': result.to_dict()
+        })
+        
+    except Exception as e:
+        db_ext.session.rollback()
+        logger.error(f"Error updating lab result: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/payments', methods=['GET', 'POST'])
 @login_required
 def payments():
     """Payment dashboard for managing appointment payments"""
     provider = Provider.get_by_user_id(current_user.id)
+    
+    # Create payment form
+    form = PaymentForm()
     
     # Get all payment records with related data
     all_payments = db_ext.session.query(Payment).join(
@@ -1638,12 +1803,78 @@ def payments():
         Patient, Appointment.patient_id == Patient.id
     ).order_by(Payment.created_at.desc()).all()
     
-    # Get pending appointments (for creating new payments)
+    # Get appointments that can have payments (pending, confirmed, or completed status)
     pending_appointments = db_ext.session.query(Appointment).filter(
         Appointment.provider_id == provider.id,
-        Appointment.payment_status == 'pending',
+        Appointment.payment_status.in_(['pending', 'unpaid', 'partially_paid']),
         Appointment.price > 0
-    ).outerjoin(Patient).all()
+    ).outerjoin(Patient).options(
+        db_ext.joinedload(Appointment.patient)
+    ).all()
+    
+    # Populate appointment choices with patient and appointment details
+    form.appointment_id.choices = [
+        (str(appt.id), f"{appt.patient.name if appt.patient else 'Walk-in Patient'} - {appt.date.strftime('%b %d, %I:%M %p')} - {appt.price}")
+        for appt in pending_appointments
+    ]
+    
+    # Add data attributes for JavaScript
+    for appt in pending_appointments:
+        for option in form.appointment_id:
+            if option.data == str(appt.id):
+                option.data_attrs = {
+                    'amount': str(appt.price),
+                    'patient': appt.patient.name if appt.patient else 'Walk-in Patient'
+                }
+    
+    # Handle form submission
+    if request.method == 'POST':
+        if form.validate_on_submit():
+            try:
+                # Process payment here
+                appointment = db_ext.session.query(Appointment).get(form.appointment_id.data)
+                if not appointment:
+                    flash('Invalid appointment selected', 'danger')
+                    return redirect(url_for('payments'))
+                    
+                # Create new payment record
+                payment = Payment(
+                    appointment_id=appointment.id,
+                    amount=form.amount.data,
+                    payment_method=form.payment_method.data,
+                    mpesa_reference=form.mpesa_reference.data if form.payment_method.data == 'mpesa' else None,
+                    notes=form.notes.data,
+                    status='completed',
+                    created_by=current_user.id
+                )
+                
+                # Update appointment payment status
+                total_paid = sum(p.amount for p in appointment.payments if p.status == 'completed')
+                total_paid += payment.amount
+                
+                if total_paid >= appointment.price:
+                    appointment.payment_status = 'paid'
+                elif total_paid > 0:
+                    appointment.payment_status = 'partially_paid'
+                else:
+                    appointment.payment_status = 'unpaid'
+                
+                # Save changes
+                db_ext.session.add(payment)
+                db_ext.session.commit()
+                
+                flash('Payment recorded successfully!', 'success')
+                return redirect(url_for('payments'))
+                
+            except Exception as e:
+                db_ext.session.rollback()
+                app.logger.error(f"Error processing payment: {str(e)}")
+                flash('An error occurred while processing the payment. Please try again.', 'danger')
+        else:
+            # Form validation failed
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f"{getattr(form, field).label.text}: {error}", 'danger')
     
     # Get payment summary statistics
     payment_summary = Payment.generate_payment_summary()
@@ -1660,7 +1891,8 @@ def payments():
                          payments=all_payments,
                          pending_appointments=pending_appointments,
                          payment_summary=payment_summary,
-                         recent_refunds=recent_refunds)
+                         recent_refunds=recent_refunds,
+                         form=form)
 
 @app.route('/create_payment', methods=['POST'])
 @login_required

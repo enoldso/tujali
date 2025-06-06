@@ -584,68 +584,76 @@
     <div class="modal fade" id="createPaymentModal" tabindex="-1" aria-labelledby="createPaymentModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form id="createPaymentForm" action="{{ url_for('create_payment') }}" method="POST">
+                <form id="createPaymentForm" method="POST" action="{{ url_for('payments') }}">
+                    {{ form.hidden_tag() }}
                     <div class="modal-header">
                         <h5 class="modal-title" id="createPaymentModalLabel">Record New Payment</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="appointment_id" class="form-label">Appointment</label>
-                        <select class="form-select" id="appointment_id" name="appointment_id" required>
-                            <option value="">Select Appointment</option>
-                            {% for appt in pending_appointments %}
-                            <option value="{{ appt.id }}" 
-                                    data-amount="{{ appt.price }}"
-                                    data-patient="{{ appt.patient.name if appt.patient else 'Walk-in Patient' }}">
-                                {{ appt.patient.name if appt.patient else 'Walk-in Patient' }} - 
-                                {{ appt.date.strftime('%b %d, %I:%M %p') }} - 
-                                {{ appt.price|format_currency }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="patient_name" class="form-label">Patient</label>
-                        <input type="text" class="form-control" id="patient_name" readonly>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="amount" class="form-label">Amount</label>
-                            <div class="input-group">
-                                <span class="input-group-text">{{ config.get('CURRENCY', 'KES') }}</span>
-                                <input type="number" class="form-control" id="amount" name="amount" 
-                                       step="0.01" min="0" required>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            {{ form.appointment_id.label(class="form-label") }}
+                            {{ form.appointment_id(class="form-select" + (' is-invalid' if form.appointment_id.errors else '')) }}
+                            {% if form.appointment_id.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.appointment_id.errors[0] }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="patient_name" class="form-label">Patient</label>
+                            <input type="text" class="form-control" id="patient_name" readonly>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.amount.label(class="form-label") }}
+                                <div class="input-group">
+                                    <span class="input-group-text">{{ config.get('CURRENCY', 'KES') }}</span>
+                                    {{ form.amount(class="form-control" + (' is-invalid' if form.amount.errors else ''), step="0.01", min="0") }}
+                                </div>
+                                {% if form.amount.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.amount.errors[0] }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.payment_method.label(class="form-label") }}
+                                {{ form.payment_method(class="form-select" + (' is-invalid' if form.payment_method.errors else '')) }}
+                                {% if form.payment_method.errors %}
+                                    <div class="invalid-feedback">
+                                        {{ form.payment_method.errors[0] }}
+                                    </div>
+                                {% endif %}
                             </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="payment_method" class="form-label">Payment Method</label>
-                            <select class="form-select" id="payment_method" name="payment_method" required>
-                                <option value="mpesa">M-Pesa</option>
-                                <option value="cash">Cash</option>
-                                <option value="card">Credit/Debit Card</option>
-                                <option value="insurance">Insurance</option>
-                                <option value="bank_transfer">Bank Transfer</option>
-                            </select>
+                        
+                        <div class="mb-3" id="mpesaReferenceField" style="display: none;">
+                            {{ form.mpesa_reference.label(class="form-label") }}
+                            {{ form.mpesa_reference(class="form-control" + (' is-invalid' if form.mpesa_reference.errors else '')) }}
+                            {% if form.mpesa_reference.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.mpesa_reference.errors[0] }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.notes.label(class="form-label") }}
+                            {{ form.notes(class="form-control" + (' is-invalid' if form.notes.errors else ''), rows="2") }}
+                            {% if form.notes.errors %}
+                                <div class="invalid-feedback">
+                                    {{ form.notes.errors[0] }}
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
-                    
-                    <div class="mb-3" id="mpesaReferenceField" style="display: none;">
-                        <label for="mpesa_reference" class="form-label">M-Pesa Reference</label>
-                        <input type="text" class="form-control" id="mpesa_reference" name="mpesa_reference">
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        {{ form.submit(class="btn btn-primary") }}
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="notes" class="form-label">Notes</label>
-                        <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Record Payment</button>
-                </div>
             </form>
         </div>
     </div>
@@ -654,6 +662,65 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Toggle M-Pesa reference field based on payment method
+        const paymentMethod = document.getElementById('{{ form.payment_method.id }}');
+        const mpesaField = document.getElementById('mpesaReferenceField');
+        
+        if (paymentMethod && mpesaField) {
+            // Toggle on page load
+            toggleMpesaField(paymentMethod.value);
+            
+            // Toggle on change
+            paymentMethod.addEventListener('change', function() {
+                toggleMpesaField(this.value);
+            });
+        }
+        
+        function toggleMpesaField(method) {
+            if (method === 'mpesa') {
+                mpesaField.style.display = 'block';
+            } else {
+                mpesaField.style.display = 'none';
+            }
+        }
+        
+        // Auto-populate patient name and amount when appointment is selected
+        const appointmentSelect = document.getElementById('{{ form.appointment_id.id }}');
+        const patientNameField = document.getElementById('patient_name');
+        const amountField = document.getElementById('{{ form.amount.id }}');
+        
+        if (appointmentSelect && patientNameField && amountField) {
+            // Handle initial load if an appointment is pre-selected
+            if (appointmentSelect.value) {
+                updateAppointmentDetails(appointmentSelect);
+            }
+            
+            // Handle changes
+            appointmentSelect.addEventListener('change', function() {
+                updateAppointmentDetails(this);
+            });
+        }
+        
+        function updateAppointmentDetails(selectElement) {
+            const selectedOption = selectElement.options[selectElement.selectedIndex];
+            if (selectedOption && selectedOption.dataset.patient) {
+                patientNameField.value = selectedOption.dataset.patient;
+                if (selectedOption.dataset.amount) {
+                    amountField.value = parseFloat(selectedOption.dataset.amount).toFixed(2);
+                }
+            } else {
+                patientNameField.value = '';
+            }
+        }
+        
+        // Initialize the appointment details if an option is already selected
+        if (appointmentSelect && appointmentSelect.value) {
+            updateAppointmentDetails(appointmentSelect);
+        }
+    });
+</script>
 <script>
     // Show alert function
     function showAlert(message, type) {

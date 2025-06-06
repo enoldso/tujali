@@ -660,6 +660,99 @@ class Message(db.Model):
             raise e
 
 
+class LabResult(db.Model):
+    """Stores laboratory test results for patients"""
+    __tablename__ = 'lab_results'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    provider_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=False)
+    test_name = db.Column(db.String(200), nullable=False)
+    test_type = db.Column(db.String(100))  # e.g., 'blood', 'urine', 'imaging'
+    test_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    result_date = db.Column(db.DateTime)
+    status = db.Column(db.String(20), default='pending')  # pending, completed, cancelled
+    notes = db.Column(db.Text)
+    results = db.Column(JSONB)  # Store test results as JSON
+    reference_range = db.Column(JSONB)  # Normal reference ranges
+    is_abnormal = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    patient = db.relationship('Patient', backref=db.backref('lab_results', lazy=True))
+    provider = db.relationship('Provider', backref=db.backref('ordered_lab_tests', lazy=True))
+    
+    def to_dict(self):
+        """Convert lab result to dictionary"""
+        return {
+            'id': self.id,
+            'patient_id': self.patient_id,
+            'provider_id': self.provider_id,
+            'test_name': self.test_name,
+            'test_type': self.test_type,
+            'test_date': self.test_date.isoformat() if self.test_date else None,
+            'result_date': self.result_date.isoformat() if self.result_date else None,
+            'status': self.status,
+            'notes': self.notes,
+            'results': self.results,
+            'reference_range': self.reference_range,
+            'is_abnormal': self.is_abnormal,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+    
+    @classmethod
+    def create(cls, patient_id, provider_id, test_name, test_type=None, results=None, 
+              reference_range=None, notes=None, status='pending'):
+        """Create a new lab result"""
+        lab_result = cls(
+            patient_id=patient_id,
+            provider_id=provider_id,
+            test_name=test_name,
+            test_type=test_type,
+            results=results or {},
+            reference_range=reference_range or {},
+            notes=notes,
+            status=status
+        )
+        db.session.add(lab_result)
+        db.session.commit()
+        return lab_result
+    
+    @classmethod
+    def get_by_patient(cls, patient_id, limit=100):
+        """Get all lab results for a specific patient"""
+        return cls.query.filter_by(patient_id=patient_id)\
+            .order_by(cls.test_date.desc())\
+            .limit(limit).all()
+    
+    @classmethod
+    def get_by_provider(cls, provider_id, limit=100):
+        """Get all lab results ordered by a specific provider"""
+        return cls.query.filter_by(provider_id=provider_id)\
+            .order_by(cls.test_date.desc())\
+            .limit(limit).all()
+    
+    def update_results(self, results, reference_range=None, notes=None, status='completed'):
+        """Update test results"""
+        self.results = results
+        if reference_range:
+            self.reference_range = reference_range
+        if notes is not None:
+            self.notes = notes
+        self.status = status
+        self.result_date = datetime.utcnow()
+        db.session.commit()
+        return self
+    
+    def mark_as_abnormal(self, is_abnormal=True):
+        """Mark test result as abnormal"""
+        self.is_abnormal = is_abnormal
+        db.session.commit()
+        return self
+
+
 class UserInteraction(db.Model):
     """
     Tracks user interactions with the system for analytics and user journey mapping

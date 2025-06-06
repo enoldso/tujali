@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block title %}Lab Result: {{ result.test_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Lab Result: {{ result.test_name }}</h1>
+        <div>
+            <a href="{{ url_for('lab_results') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+            <a href="{{ url_for('patient_lab_results', patient_id=result.patient_id) }}" class="btn btn-info">
+                <i class="fas fa-user-injured"></i> View All Results for Patient
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Patient Information -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Patient Information</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Name:</strong> {{ result.patient.name }}</p>
+                    <p><strong>Age:</strong> {{ result.patient.age or 'N/A' }}</p>
+                    <p><strong>Gender:</strong> {{ result.patient.gender or 'N/A' }}</p>
+                    <p><strong>Phone:</strong> {{ result.patient.phone_number }}</p>
+                    <p><strong>Location:</strong> {{ result.patient.location or 'N/A' }}</p>
+                </div>
+            </div>
+
+            <!-- Test Information -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Test Information</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Test Name:</strong> {{ result.test_name }}</p>
+                    <p><strong>Test Type:</strong> {{ result.test_type or 'N/A' }}</p>
+                    <p><strong>Ordered By:</strong> {{ result.provider.name }}</p>
+                    <p><strong>Order Date:</strong> {{ result.test_date.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p><strong>Status:</strong> 
+                        <span class="badge badge-{{ 'success' if result.status == 'completed' else 'warning' }}">
+                            {{ result.status|title }}
+                        </span>
+                        {% if result.is_abnormal %}
+                        <span class="badge badge-danger ml-1">Abnormal</span>
+                        {% endif %}
+                    </p>
+                    {% if result.result_date %}
+                    <p><strong>Result Date:</strong> {{ result.result_date.strftime('%Y-%m-%d %H:%M') }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Results -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Test Results</h6>
+                    {% if result.status != 'completed' %}
+                    <button class="btn btn-sm btn-primary" id="enterResultsBtn">
+                        <i class="fas fa-edit"></i> Enter Results
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if result.status == 'completed' and result.results %}
+                        {% if result.results is mapping %}
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Test Component</th>
+                                            <th>Result</th>
+                                            <th>Reference Range</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for key, value in result.results.items() %}
+                                        <tr>
+                                            <td>{{ key }}</td>
+                                            <td>{{ value }}</td>
+                                            <td>
+                                                {% if result.reference_range and key in result.reference_range %}
+                                                    {{ result.reference_range[key] }}
+                                                {% else %}
+                                                    N/A
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% set is_abnormal = result.reference_range and key in result.reference_range and 
+                                                                value and not value == result.reference_range[key] %}
+                                                {% if is_abnormal %}
+                                                    <span class="badge badge-danger">Abnormal</span>
+                                                {% else %}
+                                                    <span class="badge badge-success">Normal</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                {{ result.results }}
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-flask fa-3x text-gray-300 mb-3"></i>
+                            <p class="text-muted">No test results available yet.</p>
+                            {% if result.status != 'completed' %}
+                            <button class="btn btn-primary" id="enterResultsBtn">
+                                <i class="fas fa-edit"></i> Enter Test Results
+                            </button>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Notes</h6>
+                    <button class="btn btn-sm btn-link" id="editNotesBtn">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="notesView">
+                        {% if result.notes %}
+                            {{ result.notes|replace('\n', '<br>')|safe }}
+                        {% else %}
+                            <p class="text-muted font-italic">No notes available.</p>
+                        {% endif %}
+                    </div>
+                    <div id="notesEdit" style="display: none;">
+                        <textarea class="form-control" id="notesTextarea" rows="4">{{ result.notes or '' }}</textarea>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-primary" id="saveNotesBtn">Save</button>
+                            <button class="btn btn-sm btn-secondary" id="cancelNotesBtn">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Modal -->
+<div class="modal fade" id="resultsModal" tabindex="-1" role="dialog" aria-labelledby="resultsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resultsModalLabel">Enter Test Results</h5>
+                <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="resultsForm">
+                    <div id="resultsContainer">
+                        <div class="form-row mb-3">
+                            <div class="col-md-5">
+                                <input type="text" class="form-control" name="test_component[]" placeholder="Test Component" required>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" name="result[]" placeholder="Result" required>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" name="reference_range[]" placeholder="Reference Range">
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-danger btn-sm remove-row">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-secondary" id="addRow">
+                        <i class="fas fa-plus"></i> Add Row
+                    </button>
+                    <div class="form-group mt-3">
+                        <label for="abnormalFlag">
+                            <input type="checkbox" id="abnormalFlag" name="is_abnormal"> 
+                            Mark as Abnormal
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="resultNotes">Notes</label>
+                        <textarea class="form-control" id="resultNotes" name="notes" rows="3">{{ result.notes or '' }}</textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" id="saveResultsBtn">Save Results</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+$(document).ready(function() {
+    // Toggle notes edit mode
+    let originalNotes = $('#notesTextarea').val();
+    
+    $('#editNotesBtn').click(function() {
+        $('#notesView').hide();
+        $('#notesEdit').show();
+        $(this).hide();
+    });
+    
+    $('#cancelNotesBtn').click(function() {
+        $('#notesTextarea').val(originalNotes);
+        $('#notesEdit').hide();
+        $('#notesView').show();
+        $('#editNotesBtn').show();
+    });
+    
+    $('#saveNotesBtn').click(function() {
+        const notes = $('#notesTextarea').val();
+        
+        $.ajax({
+            url: '{{ url_for("update_lab_result", result_id=result.id) }}',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                notes: notes
+            }),
+            success: function(response) {
+                if (response.success) {
+                    $('#notesView').html(notes ? notes.replace(/\n/g, '<br>') : 
+                        '<p class="text-muted font-italic">No notes available.</p>');
+                    originalNotes = notes;
+                    $('#notesEdit').hide();
+                    $('#notesView').show();
+                    $('#editNotesBtn').show();
+                    
+                    // Show success message
+                    showAlert('Notes updated successfully!', 'success');
+                } else {
+                    showAlert('Error updating notes: ' + (response.error || 'Unknown error'), 'danger');
+                }
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'Unknown error';
+                showAlert('Error updating notes: ' + error, 'danger');
+            }
+        });
+    });
+    
+    // Results modal
+    $('.enter-results-btn, #enterResultsBtn').click(function() {
+        $('#resultsModal').modal('show');
+    });
+    
+    // Add row to results form
+    $('#addRow').click(function() {
+        const row = `
+            <div class="form-row mb-3">
+                <div class="col-md-5">
+                    <input type="text" class="form-control" name="test_component[]" placeholder="Test Component" required>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control" name="result[]" placeholder="Result" required>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control" name="reference_range[]" placeholder="Reference Range">
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-danger btn-sm remove-row">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        $('#resultsContainer').append(row);
+    });
+    
+    // Remove row from results form
+    $(document).on('click', '.remove-row', function() {
+        $(this).closest('.form-row').remove();
+    });
+    
+    // Save results
+    $('#saveResultsBtn').click(function() {
+        const formData = {
+            results: {},
+            reference_range: {},
+            status: 'completed',
+            is_abnormal: $('#abnormalFlag').is(':checked'),
+            notes: $('#resultNotes').val()
+        };
+        
+        // Collect form data
+        $('.form-row').each(function() {
+            const component = $(this).find('input[name="test_component[]"]').val();
+            const result = $(this).find('input[name="result[]"]').val();
+            const refRange = $(this).find('input[name="reference_range[]"]').val();
+            
+            if (component && result) {
+                formData.results[component] = result;
+                if (refRange) {
+                    formData.reference_range[component] = refRange;
+                }
+            }
+        });
+        
+        // Send data to server
+        $.ajax({
+            url: '{{ url_for("update_lab_result", result_id=result.id) }}',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            success: function(response) {
+                if (response.success) {
+                    window.location.reload();
+                } else {
+                    showAlert('Error saving results: ' + (response.error || 'Unknown error'), 'danger');
+                }
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'Unknown error';
+                showAlert('Error saving results: ' + error, 'danger');
+            }
+        });
+    });
+    
+    // Helper function to show alerts
+    function showAlert(message, type) {
+        const alert = `
+            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        `;
+        
+        // Remove any existing alerts
+        $('.alert-dismissible').remove();
+        
+        // Add new alert at the top of the content
+        $('.container-fluid').prepend(alert);
+    }
+});
+</script>
+{% endblock %}
