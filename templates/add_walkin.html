@@ -72,13 +72,56 @@
                                             {% endif %}
                                         </div>
                                     </div>
-                                    <div class="col-md-8">
+                                    <div class="col-md-4">
                                         <div class="form-floating mb-3">
                                             {{ form.gender(class="form-select", id="gender") }}
                                             <label for="gender">Gender</label>
                                             {% if form.gender.errors %}
                                             <div class="invalid-feedback d-block">
                                                 {% for error in form.gender.errors %}
+                                                <span>{{ error }}</span>
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-floating mb-3">
+                                            {{ form.schedule_type(class="form-select", id="schedule-type") }}
+                                            <label for="schedule-type">Appointment Type</label>
+                                            {% if form.schedule_type.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.schedule_type.errors %}
+                                                <span>{{ error }}</span>
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Appointment Scheduling Fields (initially hidden) -->
+                                <div id="appointment-fields" class="row mb-3" style="display: none;">
+                                    <div class="col-md-6">
+                                        <div class="form-floating mb-3">
+                                            {{ form.appointment_date(class="form-control") }}
+                                            <label for="appointment_date">Appointment Date</label>
+                                            {% if form.appointment_date.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.appointment_date.errors %}
+                                                <span>{{ error }}</span>
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating mb-3">
+                                            {{ form.appointment_time(class="form-control") }}
+                                            <label for="appointment_time">Appointment Time</label>
+                                            {% if form.appointment_time.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {% for error in form.appointment_time.errors %}
                                                 <span>{{ error }}</span>
                                                 {% endfor %}
                                             </div>
@@ -183,9 +226,52 @@
 {% block scripts %}
 {{ super() }}
 <script>
-    // Add any additional JavaScript here if needed
+    // Initialize form validation and appointment type toggle
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize any form validation or enhancements
+        const scheduleType = document.getElementById('schedule-type');
+        const appointmentFields = document.getElementById('appointment-fields');
+        const appointmentDate = document.getElementById('appointment_date');
+        const appointmentTime = document.getElementById('appointment_time');
+        
+        // Set minimum date to today
+        const today = new Date().toISOString().split('T')[0];
+        if (appointmentDate) {
+            appointmentDate.min = today;
+        }
+        
+        // Toggle appointment fields based on schedule type
+        function toggleAppointmentFields() {
+            if (scheduleType && scheduleType.value === 'schedule') {
+                appointmentFields.style.display = 'flex';
+                // Make fields required when visible
+                if (appointmentDate) appointmentDate.required = true;
+                if (appointmentTime) appointmentTime.required = true;
+            } else {
+                if (appointmentFields) appointmentFields.style.display = 'none';
+                // Remove required when hidden
+                if (appointmentDate) appointmentDate.required = false;
+                if (appointmentTime) appointmentTime.required = false;
+            }
+        }
+        
+        // Initial toggle
+        if (scheduleType) {
+            toggleAppointmentFields();
+            // Add change event listener
+            scheduleType.addEventListener('change', toggleAppointmentFields);
+        }
+        
+        // Form validation
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        }
     });
 </script>
 {% endblock %}

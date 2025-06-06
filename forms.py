@@ -88,7 +88,7 @@ class HealthEducationForm(FlaskForm):
 
 
 class WalkInPatientForm(FlaskForm):
-    """Form for adding walk-in patients with symptom details"""
+    """Form for adding walk-in patients with symptom details and appointment scheduling"""
     # Basic Information
     name = StringField('Full Name', validators=[DataRequired()])
     phone = StringField('Phone Number', validators=[
@@ -105,6 +105,21 @@ class WalkInPatientForm(FlaskForm):
         ('other', 'Other'),
         ('prefer_not_to_say', 'Prefer not to say')
     ], validators=[DataRequired()])
+    
+    # Appointment Scheduling
+    schedule_type = SelectField('Appointment Type', choices=[
+        ('walkin', 'Walk-in (See doctor now)'),
+        ('schedule', 'Schedule for later')
+    ], default='walkin', validators=[DataRequired()])
+    
+    # These fields will be shown/hidden based on schedule_type
+    appointment_date = StringField('Appointment Date', 
+                                 validators=[Optional()],
+                                 render_kw={"type": "date", "class": "appointment-field"})
+    
+    appointment_time = StringField('Appointment Time',
+                                  validators=[Optional()],
+                                  render_kw={"type": "time", "class": "appointment-field"})
     
     # Symptom Details
     chief_complaint = TextAreaField('Chief Complaint', validators=[DataRequired()], 
@@ -136,6 +151,25 @@ class WalkInPatientForm(FlaskForm):
     
     additional_notes = TextAreaField('Additional Notes', 
                                    render_kw={"placeholder": "Any other relevant information about the symptoms"})
+    
+    def validate(self, **kwargs):
+        # First call the parent's validate() method
+        if not super().validate():
+            return False
+            
+        # If scheduling for later, validate the appointment date and time
+        if self.schedule_type.data == 'schedule':
+            if not self.appointment_date.data:
+                self.appointment_date.errors.append('Please select an appointment date')
+                return False
+                
+            if not self.appointment_time.data:
+                self.appointment_time.errors.append('Please select an appointment time')
+                return False
+                
+            # Additional validation for future date/time can be added here
+            
+        return True
     
     submit = SubmitField('Add Patient')
 

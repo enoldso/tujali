@@ -628,3 +628,170 @@ class Message(db.Model):
         conversations.sort(key=lambda x: x['latest_message'].created_at, reverse=True)
         
         return conversations
+        
+    @classmethod
+    def mark_as_read(cls, patient_id, provider_id):
+        """
+        Mark all unread messages from a patient to a provider as read
+        
+        Args:
+            patient_id (int): The ID of the patient
+            provider_id (int): The ID of the provider
+            
+        Returns:
+            int: Number of messages marked as read
+        """
+        try:
+            # Update all unread messages from this patient to this provider
+            updated = cls.query.filter_by(
+                patient_id=patient_id,
+                provider_id=provider_id,
+                is_read=False,
+                sender_type='patient'  # Only mark patient's messages as read
+            ).update({
+                'is_read': True
+            }, synchronize_session=False)
+            
+            db.session.commit()
+            return updated
+            
+        except Exception as e:
+            db.session.rollback()
+            raise e
+
+
+class UserInteraction(db.Model):
+    """
+    Tracks user interactions with the system for analytics and user journey mapping
+    """
+    __tablename__ = 'user_interactions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    interaction_type = db.Column(db.String(50), nullable=False)  # e.g., 'message', 'appointment', 'payment', etc.
+    description = db.Column(db.String(255))
+    interaction_metadata = db.Column('metadata', JSONB)  # Store additional context as JSON
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    patient = db.relationship('Patient', backref=db.backref('interactions', lazy=True))
+    
+    @classmethod
+    def create(cls, patient_id, interaction_type, description=None, metadata=None):
+        """Create a new user interaction"""
+        interaction = cls(
+            patient_id=patient_id,
+            interaction_type=interaction_type,
+            description=description,
+            interaction_metadata=metadata or {}
+        )
+        db.session.add(interaction)
+        db.session.commit()
+        return interaction
+    
+    @classmethod
+    def get_by_patient(cls, patient_id, limit=100):
+        """Get all interactions for a specific patient"""
+        return cls.query.filter_by(patient_id=patient_id)\
+                       .order_by(cls.created_at.desc())\
+                       .limit(limit)\
+                       .all()
+    
+    def to_dict(self):
+        """Convert interaction to dictionary"""
+        return {
+            'id': self.id,
+            'patient_id': self.patient_id,
+            'interaction_type': self.interaction_type,
+            'description': self.description,
+            'metadata': self.interaction_metadata,  # Using the renamed attribute
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+        
+    @classmethod
+    def get_patient_journey(cls, patient_id, limit=100):
+        """
+        Get the complete journey of a patient including all interactions
+        
+        Args:
+            patient_id (int): The ID of the patient
+            limit (int): Maximum number of interactions to return
+            
+        Returns:
+            dict: A dictionary containing the patient's journey data
+        """
+        from sqlalchemy import desc
+        
+        # Get all interactions for the patient
+        interactions = cls.query.filter_by(patient_id=patient_id)\
+                             .order_by(desc(cls.created_at))\
+                             .limit(limit)\
+                             .all()
+        
+        # Group interactions by type
+        interactions_by_type = {}
+        for interaction in interactions:
+            if interaction.interaction_type not in interactions_by_type:
+                interactions_by_type[interaction.interaction_type] = []
+            interactions_by_type[interaction.interaction_type].append(interaction.to_dict())
+        
+        # Get patient details
+        patient = Patient.get_by_id(patient_id)
+        
+        # Get appointment history
+        appointments = []
+        if hasattr(Patient, 'appointments'):
+            appointments = [{
+                'id': appt.id,
+                'date': appt.date.isoformat() if appt.date else None,
+                'time': appt.time.isoformat() if appt.time else None,
+                'status': appt.status,
+                'type': 'appointment'
+            } for appt in patient.appointments] if patient else []
+        
+        # Get message history
+        messages = []
+        if hasattr(Patient, 'messages'):
+            messages = [{
+                'id': msg.id,
+                'content': msg.content[:100] + '...' if msg.content and len(msg.content) > 100 else msg.content,
+                'created_at': msg.created_at.isoformat() if msg.created_at else None,
+                'type': 'message',
+                'sender': msg.sender_type
+            } for msg in patient.messages] if patient else []
+        
+        # Get payment history
+        payments = []
+        if hasattr(Patient, 'appointments') and patient:
+            for appt in patient.appointments:
+                for payment in appt.payments:
+                    payments.append({
+                        'id': payment.id,
+                        'amount': payment.amount,
+                        'status': payment.status,
+                        'created_at': payment.created_at.isoformat() if payment.created_at else None,
+                        'type': 'payment',
+                        'appointment_id': payment.appointment_id
+                    })
+        
+        return {
+            'patient': {
+                'id': patient.id,
+                'name': patient.name if patient else 'Unknown',
+                'phone_number': patient.phone_number if patient else None,
+                'age': patient.age if patient else None,
+                'gender': patient.gender if patient else None,
+                'location': patient.location if patient else None,
+                'created_at': patient.created_at.isoformat() if patient and patient.created_at else None
+            },
+            'interactions': interactions_by_type,
+            'appointments': appointments,
+            'messages': messages,
+            'payments': payments,
+            'stats': {
+                'total_interactions': len(interactions),
+                'appointment_count': len(appointments),
+                'message_count': len(messages),
+                'payment_count': len(payments)
+            }
+        }

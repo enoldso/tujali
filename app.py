@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from config import config
 from extensions import db as db_ext, migrate
 # Import models after db initialization to avoid circular imports
-from models_sqlalchemy import User, Provider, Patient, Appointment, Message, Payment, PaymentRefund, Prescription, Pharmacy, HealthInfo
+from models_sqlalchemy import User, Provider, Patient, Appointment, Message, Payment, PaymentRefund, Prescription, Pharmacy, HealthInfo, UserInteraction
 from forms import LoginForm, MessageForm, HealthInfoForm, HealthTipsForm, HealthEducationForm, RegistrationForm, WalkInPatientForm, PrescriptionForm
 from ussd_handler import ussd_callback
 import utils
@@ -248,22 +248,52 @@ def add_walkin():
                 'additional_notes': form.additional_notes.data
             }
             
-            # Create a new appointment for the walk-in
-            from datetime import datetime
-            now = datetime.now()
+            # Create an appointment based on the selected type
+            from datetime import datetime, timedelta
             
+            if form.schedule_type.data == 'walkin':
+                # For walk-ins, create a completed appointment for now
+                appointment_date = datetime.now().date()
+                appointment_time = datetime.now().time()
+                status = 'completed'
+                notes = """Walk-in patient. 
+                Chief Complaint: {}
+                Duration: {}
+                Severity: {}
+                Location: {}
+                Notes: {}""".format(
+                    symptom_details['chief_complaint'],
+                    symptom_details['duration'],
+                    symptom_details['severity'],
+                    symptom_details['location'],
+                    symptom_details['additional_notes']
+                )
+            else:
+                # For scheduled appointments
+                appointment_date = datetime.strptime(form.appointment_date.data, '%Y-%m-%d').date()
+                appointment_time = datetime.strptime(form.appointment_time.data, '%H:%M').time()
+                status = 'pending'  # Will need confirmation
+                notes = """Scheduled appointment. 
+                Chief Complaint: {}
+                Duration: {}
+                Severity: {}
+                Location: {}
+                Notes: {}""".format(
+                    symptom_details['chief_complaint'],
+                    symptom_details['duration'],
+                    symptom_details['severity'],
+                    symptom_details['location'],
+                    form.additional_notes.data
+                )
+            
+            # Create the appointment
             appointment = Appointment(
                 patient_id=patient.id,
                 provider_id=provider.id,
-                date=now.date(),
-                time=now.time(),
-                status='completed',
-                notes=f"""Walk-in patient. 
-                Chief Complaint: {symptom_details['chief_complaint']}
-                Duration: {symptom_details['duration']}
-                Severity: {symptom_details['severity']}
-                Location: {symptom_details['location']}
-                Notes: {symptom_details['additional_notes']}"""
+                date=appointment_date,
+                time=appointment_time,
+                status=status,
+                notes=notes
             )
             db_ext.session.add(appointment)
             
@@ -439,26 +469,128 @@ def appointments():
                          calendar_events=calendar_events,
                          appointment_dates=appointment_dates)
 
+@app.route('/appointment/create', methods=['GET', 'POST'])
+@login_required
+def create_appointment():
+    """Create a new appointment"""
+    provider = Provider.get_by_user_id(current_user.id)
+    
+    if request.method == 'POST':
+        try:
+            patient_id = request.form.get('patient_id')
+            date_str = request.form.get('date')
+            time_str = request.form.get('time')
+            notes = request.form.get('notes', '')
+            
+            # Validate required fields
+            if not all([patient_id, date_str, time_str]):
+                flash('Please fill in all required fields.', 'danger')
+                return redirect(url_for('create_appointment'))
+            
+            # Parse date and time
+            try:
+                appointment_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                appointment_time = datetime.strptime(time_str, '%H:%M').time()
+            except ValueError:
+                flash('Invalid date or time format.', 'danger')
+                return redirect(url_for('create_appointment'))
+            
+            # Check for time conflicts
+            existing = Appointment.query.filter(
+                Appointment.provider_id == provider.id,
+                Appointment.date == appointment_date,
+                Appointment.time == appointment_time,
+                Appointment.status.in_(['pending', 'confirmed'])
+            ).first()
+            
+            if existing:
+                flash('There is already an appointment scheduled at this time.', 'danger')
+                return redirect(url_for('create_appointment'))
+            
+            # Create new appointment
+            appointment = Appointment(
+                patient_id=patient_id,
+                provider_id=provider.id,
+                date=appointment_date,
+                time=appointment_time,
+                status='pending',
+                notes=notes
+            )
+            
+            db_ext.session.add(appointment)
+            db_ext.session.commit()
+            
+            flash('Appointment created successfully!', 'success')
+            return redirect(url_for('appointments'))
+            
+        except Exception as e:
+            db_ext.session.rollback()
+            app.logger.error(f"Error creating appointment: {str(e)}")
+            flash('An error occurred while creating the appointment.', 'danger')
+    
+    # Get patients for the dropdown
+    patients = Patient.query.order_by(Patient.name).all()
+    return render_template('create_appointment.html', 
+                         provider=provider, 
+                         patients=patients,
+                         min_date=datetime.now().strftime('%Y-%m-%d'))
+
 @app.route('/appointment/update', methods=['POST'])
 @login_required
 def update_appointment():
-    """Update appointment status"""
+    """Update appointment status or details"""
     provider = Provider.get_by_user_id(current_user.id)
     appointment_id = request.form.get('appointment_id')
     status = request.form.get('status')
     
     if not appointment_id or not status:
-        flash('Invalid request. Appointment ID and status are required.', 'danger')
-        return redirect(url_for('appointments'))
+        return jsonify({'success': False, 'message': 'Appointment ID and status are required.'}), 400
     
-    success = Appointment.update_status(int(appointment_id), status)
-    
-    if success:
-        flash('Appointment updated successfully.', 'success')
-    else:
-        flash('Failed to update appointment.', 'danger')
-    
-    return redirect(url_for('appointments'))
+    try:
+        appointment = Appointment.query.get(int(appointment_id))
+        if not appointment:
+            return jsonify({'success': False, 'message': 'Appointment not found.'}), 404
+            
+        if appointment.provider_id != provider.id:
+            return jsonify({'success': False, 'message': 'Unauthorized.'}), 403
+        
+        # Update status
+        appointment.status = status
+        
+        # If completing an appointment, set the completion time
+        if status == 'completed':
+            appointment.completed_at = datetime.utcnow()
+        
+        db_ext.session.commit()
+        
+        # Track this interaction
+        track_interaction(
+            patient_id=appointment.patient_id,
+            interaction_type='appointment_status_update',
+            description=f'Appointment status changed to {status}',
+            metadata={
+                'appointment_id': appointment.id,
+                'previous_status': appointment.status,
+                'new_status': status,
+                'provider_id': provider.id
+            }
+        )
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Appointment updated successfully.',
+            'appointment': {
+                'id': appointment.id,
+                'status': appointment.status,
+                'status_display': appointment.status.capitalize(),
+                'status_badge': f'<span class="badge bg-{"success" if status == "completed" else "warning" if status == "pending" else "danger" if status == "cancelled" else "info"}">{appointment.status.capitalize()}</span>'
+            }
+        })
+        
+    except Exception as e:
+        db_ext.session.rollback()
+        app.logger.error(f"Error updating appointment: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to update appointment.'}), 500
 
 @app.route('/messages')
 @login_required
@@ -993,8 +1125,12 @@ def user_journey_list():
     
     # For each patient, get a count of their interactions
     for patient in patients:
-        interactions = UserInteraction.get_by_patient(patient.id)
-        patient.interaction_count = len(interactions)
+        try:
+            interactions = UserInteraction.get_by_patient(patient.id)
+            patient.interaction_count = len(interactions) if interactions else 0
+        except Exception as e:
+            app.logger.error(f"Error getting interactions for patient {patient.id}: {str(e)}")
+            patient.interaction_count = 0
     
     return render_template('user_journey_list.html', 
                           provider=provider,

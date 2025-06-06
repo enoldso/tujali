@@ -149,7 +149,7 @@
                         <div class="col-md-4 text-center mb-3 mb-md-0">
                             <div class="card border-0 journey-stat-card">
                                 <div class="card-body">
-                                    <span class="interaction-count">{{ journey_data.statistics.total_interactions }}</span>
+                                    <span class="interaction-count">{{ journey_data.stats.total_interactions }}</span>
                                     <p class="text-muted">Total Interactions</p>
                                 </div>
                             </div>
@@ -158,7 +158,7 @@
                         <div class="col-md-4 text-center mb-3 mb-md-0">
                             <div class="card border-0 journey-stat-card">
                                 <div class="card-body">
-                                    <span class="interaction-count">{{ journey_data.statistics.avg_interactions_per_month }}</span>
+                                    <span class="interaction-count">{{ journey_data.stats.appointment_count }}</span>
                                     <p class="text-muted">Avg. per Month</p>
                                 </div>
                             </div>
@@ -191,69 +191,24 @@
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    {% for type, interactions in journey_data.interactions.items() %}
                                     <tr>
                                         <td>
-                                            <span class="badge bg-primary me-2">USSD</span>
-                                            USSD Sessions
+                                            <span class="badge bg-primary me-2">{{ type|upper|slice(0, 4) }}</span>
+                                            {{ type|replace('_', ' ')|title }}
                                         </td>
                                         <td class="text-end">
-                                            {% if journey_data.statistics.interaction_by_type.ussd %}
-                                                {{ journey_data.statistics.interaction_by_type.ussd }}
-                                            {% else %}
-                                                0
-                                            {% endif %}
+                                            {{ interactions|length }}
                                         </td>
                                     </tr>
+                                    {% endfor %}
                                     <tr>
                                         <td>
                                             <span class="badge bg-success me-2">APPT</span>
                                             Appointments
                                         </td>
                                         <td class="text-end">
-                                            {% if journey_data.statistics.interaction_by_type.appointment %}
-                                                {{ journey_data.statistics.interaction_by_type.appointment }}
-                                            {% else %}
-                                                0
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <span class="badge bg-info me-2">MSG</span>
-                                            Messages
-                                        </td>
-                                        <td class="text-end">
-                                            {% if journey_data.statistics.interaction_by_type.message %}
-                                                {{ journey_data.statistics.interaction_by_type.message }}
-                                            {% else %}
-                                                0
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <span class="badge bg-warning me-2">SYMP</span>
-                                            Symptoms
-                                        </td>
-                                        <td class="text-end">
-                                            {% if journey_data.statistics.interaction_by_type.symptom %}
-                                                {{ journey_data.statistics.interaction_by_type.symptom }}
-                                            {% else %}
-                                                0
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <span class="badge bg-danger me-2">TIPS</span>
-                                            Health Tips
-                                        </td>
-                                        <td class="text-end">
-                                            {% if journey_data.statistics.interaction_by_type.health_tip %}
-                                                {{ journey_data.statistics.interaction_by_type.health_tip }}
-                                            {% else %}
-                                                0
-                                            {% endif %}
+                                            {{ journey_data.stats.appointment_count }}
                                         </td>
                                     </tr>
                                 </tbody>
