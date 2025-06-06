@@ -357,9 +357,436 @@
     </div>
 </div>
 
-<!-- Appointment Calendar -->
+<!-- FullCalendar Integration -->
 <div class="row mt-4">
     <div class="col-md-12">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i data-feather="calendar" class="me-2"></i>Appointment Calendar
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="calendar"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Appointment Details Modal -->
+<div class="modal fade" id="appointmentModal" tabindex="-1" aria-labelledby="appointmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="appointmentModalLabel">Appointment Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <h6 class="text-muted mb-1">Patient</h6>
+                    <p class="mb-2" id="modal-patient-name"></p>
+                </div>
+                <div class="mb-3">
+                    <h6 class="text-muted mb-1">Date & Time</h6>
+                    <p class="mb-2" id="modal-appointment-time"></p>
+                </div>
+                <div class="mb-3">
+                    <h6 class="text-muted mb-1">Status</h6>
+                    <p class="mb-2"><span id="modal-status" class="badge"></span></p>
+                </div>
+                <div class="mb-3">
+                    <h6 class="text-muted mb-1">Notes</h6>
+                    <p class="mb-2" id="modal-notes">No notes available</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <form id="update-status-form" method="post" action="{{ url_for('update_appointment') }}">
+                    <input type="hidden" name="appointment_id" id="appointment-id">
+                    <input type="hidden" name="status" id="status-value">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success status-btn" data-status="confirmed">Confirm</button>
+                    <button type="button" class="btn btn-primary status-btn" data-status="completed">Complete</button>
+                    <button type="button" class="btn btn-danger status-btn" data-status="cancelled">Cancel</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add FullCalendar CSS -->
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+
+<!-- Add FullCalendar JS -->
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+
+<!-- Add custom styles for the calendar -->
+<style>
+    #calendar {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    
+    /* Calendar header */
+    .fc-header-toolbar {
+        margin-bottom: 1.5em;
+    }
+    
+    /* Calendar toolbar buttons */
+    .fc-button {
+        background-color: #0d6efd;
+        border: 1px solid #0d6efd;
+        color: white;
+        padding: 0.375rem 0.75rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        font-weight: 400;
+        line-height: 1.5;
+        transition: all 0.15s ease-in-out;
+    }
+    
+    .fc-button:hover {
+        background-color: #0b5ed7;
+        border-color: #0a58ca;
+    }
+    
+    .fc-button-active {
+        background-color: #0b5ed7;
+        border-color: #0a58ca;
+    }
+    
+    /* Calendar title */
+    .fc-toolbar-title {
+        font-size: 1.4em;
+        font-weight: 500;
+        color: #212529;
+    }
+    
+    /* Calendar table */
+    .fc-col-header-cell {
+        background-color: #f8f9fa;
+        padding: 0.5rem 0;
+    }
+    
+    .fc-col-header-cell-cushion {
+        color: #495057;
+        font-weight: 500;
+        text-decoration: none;
+    }
+    
+    /* Today's date */
+    .fc-day-today {
+        background-color: rgba(13, 110, 253, 0.05) !important;
+    }
+    
+    /* Calendar events */
+    .fc-event {
+        cursor: pointer;
+        font-size: 0.8em;
+        padding: 2px 4px;
+        margin: 1px 2px;
+        border: none;
+        border-radius: 3px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .fc-event .fc-event-time {
+        font-weight: 500;
+        margin-right: 4px;
+    }
+    
+    .fc-event .fc-event-title {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: middle;
+    }
+    
+    /* Event colors based on status */
+    .fc-event-pending {
+        background-color: #ffc107;
+        color: #000;
+    }
+    
+    .fc-event-confirmed {
+        background-color: #198754;
+        color: #fff;
+    }
+    
+    .fc-event-completed {
+        background-color: #0dcaf0;
+        color: #000;
+    }
+    
+    .fc-event-cancelled {
+        background-color: #dc3545;
+        color: #fff;
+    }
+    
+    /* Modal styles */
+    .modal-header {
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .modal-footer {
+        border-top: 1px solid #dee2e6;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .fc-toolbar {
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .fc-toolbar-title {
+            font-size: 1.2em;
+        }
+    }
+</style>
+
+<!-- Initialize FullCalendar -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    
+    // Initialize the calendar
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        dayMaxEvents: 3,
+        eventDisplay: 'block',
+        eventTimeFormat: {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        },
+        eventClassNames: function(arg) {
+            return ['fc-event-' + arg.event.extendedProps.status];
+        },
+        events: {{ calendar_events|tojson|safe }},
+        eventContent: function(arg) {
+            try {
+                // Create a container for the event content
+                var container = document.createElement('div');
+                container.className = 'fc-event-main';
+                
+                // Create time element if time is available
+                if (arg.timeText) {
+                    var timeEl = document.createElement('div');
+                    timeEl.className = 'fc-event-time';
+                    timeEl.textContent = arg.timeText;
+                    container.appendChild(timeEl);
+                }
+                
+                // Create title element
+                var titleEl = document.createElement('div');
+                titleEl.className = 'fc-event-title';
+                titleEl.textContent = arg.event.title || 'Appointment';
+                
+                // Create status icon
+                var statusIcons = {
+                    'pending': 'clock',
+                    'confirmed': 'check-circle',
+                    'completed': 'check',
+                    'cancelled': 'x-circle'
+                };
+                
+                var iconEl = document.createElement('i');
+                var status = 'pending';
+                try {
+                    status = arg.event.extendedProps.status || 'pending';
+                } catch (e) {
+                    console.warn('Could not get event status', e);
+                }
+                var iconName = statusIcons[status] || 'calendar';
+                
+                iconEl.setAttribute('data-feather', iconName);
+                iconEl.style.width = '12px';
+                iconEl.style.height = '12px';
+                iconEl.style.marginRight = '4px';
+                iconEl.style.verticalAlign = 'middle';
+                
+                // Create a wrapper for the icon and title
+                var contentWrapper = document.createElement('div');
+                contentWrapper.style.display = 'flex';
+                contentWrapper.style.alignItems = 'center';
+                contentWrapper.style.overflow = 'hidden';
+                contentWrapper.style.textOverflow = 'ellipsis';
+                contentWrapper.style.whiteSpace = 'nowrap';
+                
+                // Append elements
+                contentWrapper.appendChild(iconEl);
+                contentWrapper.appendChild(titleEl);
+                container.appendChild(contentWrapper);
+                
+                // Initialize feather icons if available
+                if (window.feather) {
+                    window.feather.replace({ width: 12, height: 12 });
+                }
+                
+                return { domNodes: [container] };
+            } catch (error) {
+                console.error('Error rendering event:', error);
+                return { html: '<div class="fc-event-main">Error loading event</div>' };
+            }
+        },
+        eventClick: function(info) {
+            try {
+                // Populate modal with event data
+                const extendedProps = info.event.extendedProps || {};
+                const patientName = extendedProps.patient_name || 'Unknown Patient';
+                const modalPatientName = document.getElementById('modal-patient-name');
+                const modalAppointmentTime = document.getElementById('modal-appointment-time');
+                
+                if (modalPatientName) modalPatientName.textContent = patientName;
+                
+                if (modalAppointmentTime && info.event.start) {
+                    modalAppointmentTime.textContent = info.event.start.toLocaleString('en-US', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                }
+                
+                // Update status badge
+                const status = extendedProps.status || 'pending';
+                const statusBadge = document.getElementById('modal-status');
+                if (statusBadge) {
+                    statusBadge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+                    statusBadge.className = 'badge ' + 
+                        (status === 'pending' ? 'bg-warning' : 
+                         status === 'confirmed' ? 'bg-success' : 
+                         status === 'completed' ? 'bg-info' : 'bg-danger');
+                }
+                
+                // Update notes
+                const modalNotes = document.getElementById('modal-notes');
+                if (modalNotes) {
+                    modalNotes.textContent = extendedProps.notes || 'No notes available';
+                }
+                
+                // Set appointment ID for form submission
+                const appointmentIdInput = document.getElementById('appointment-id');
+                if (appointmentIdInput) {
+                    appointmentIdInput.value = info.event.id || '';
+                }
+                
+                // Show/hide action buttons based on status
+                const statusBtns = document.querySelectorAll('.status-btn');
+                statusBtns.forEach(btn => {
+                    if (!btn.dataset.status) return;
+                    
+                    if (status === 'pending') {
+                        btn.style.display = ['confirmed', 'cancelled'].includes(btn.dataset.status) ? '' : 'none';
+                    } else if (status === 'confirmed') {
+                        btn.style.display = ['completed', 'cancelled'].includes(btn.dataset.status) ? '' : 'none';
+                    } else {
+                        btn.style.display = 'none';
+                    }
+                });
+                
+                // Show the modal
+                const modalElement = document.getElementById('appointmentModal');
+                if (modalElement) {
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
+                }
+                
+                // Prevent default click behavior if possible
+                if (info.jsEvent) {
+                    info.jsEvent.preventDefault();
+                }
+            } catch (error) {
+                console.error('Error handling event click:', error);
+            }
+        },
+
+        eventDidMount: function(info) {
+            // Initialize Feather icons for events
+            if (window.feather) {
+                try {
+                    window.feather.replace({ width: 12, height: 12 });
+                } catch (e) {
+                    console.error('Error initializing Feather icons:', e);
+                }
+            }
+        }
+    });
+    
+    calendar.render();
+    
+    // Handle status update buttons with confirmation
+    var statusButtons = document.querySelectorAll('.status-btn');
+    statusButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var status = this.dataset.status;
+            var statusText = status.charAt(0).toUpperCase() + status.slice(1);
+            
+            if (confirm('Are you sure you want to mark this appointment as ' + statusText + '?')) {
+                var statusInput = document.getElementById('status-value');
+                var form = document.getElementById('update-status-form');
+                if (statusInput && form) {
+                    statusInput.value = status;
+                    form.submit();
+                }
+            }
+        });
+    });
+    
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function(tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl, {
+            trigger: 'hover',
+            container: 'body',
+            boundary: 'window'
+        });
+    });
+    
+    // Refresh calendar on tab show to fix rendering issues
+    var tabs = document.querySelectorAll('a[data-bs-toggle="tab"]');
+    tabs.forEach(function(tab) {
+        tab.addEventListener('shown.bs.tab', function() {
+            setTimeout(function() {
+                calendar.updateSize();
+            }, 100);
+        });
+    });
+});
+</script>
+
+<!-- Add this at the end of your template to initialize Feather icons -->
+<script>
+// Initialize Feather icons
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.feather) {
+        window.feather.replace({ width: 14, height: 14 });
+    }
+    
+    // Refresh calendar after modal is hidden to show updated status
+    const modal = document.getElementById('appointmentModal');
+    if (modal) {
+        modal.addEventListener('hidden.bs.modal', function () {
+            if (window.calendar) {
+                window.calendar.refetchEvents();
+            }
+        });
+    }
+});
+</script>
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-transparent">
                 <h5 class="card-title">Appointment Calendar</h5>

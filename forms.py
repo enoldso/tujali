@@ -88,7 +88,8 @@ class HealthEducationForm(FlaskForm):
 
 
 class WalkInPatientForm(FlaskForm):
-    """Form for adding walk-in patients"""
+    """Form for adding walk-in patients with symptom details"""
+    # Basic Information
     name = StringField('Full Name', validators=[DataRequired()])
     phone = StringField('Phone Number', validators=[
         DataRequired(),
@@ -104,7 +105,38 @@ class WalkInPatientForm(FlaskForm):
         ('other', 'Other'),
         ('prefer_not_to_say', 'Prefer not to say')
     ], validators=[DataRequired()])
-    chief_complaint = TextAreaField('Chief Complaint', validators=[DataRequired()])
+    
+    # Symptom Details
+    chief_complaint = TextAreaField('Chief Complaint', validators=[DataRequired()], 
+                                  render_kw={"placeholder": "Describe the main symptoms or reason for visit"})
+    
+    symptom_duration = SelectField('Duration of Symptoms', choices=[
+        ('less_than_day', 'Less than a day'),
+        ('1-3_days', '1-3 days'),
+        ('4-7_days', '4-7 days'),
+        ('1-2_weeks', '1-2 weeks'),
+        ('more_than_2_weeks', 'More than 2 weeks')
+    ], validators=[DataRequired()])
+    
+    symptom_severity = SelectField('Severity', choices=[
+        ('mild', 'Mild - Minor discomfort, no disruption to daily activities'),
+        ('moderate', 'Moderate - Noticeable discomfort, some disruption to daily activities'),
+        ('severe', 'Severe - Significant pain or impairment, unable to perform daily activities')
+    ], validators=[DataRequired()])
+    
+    symptom_location = SelectField('Location of Symptoms', choices=[
+        ('head', 'Head'),
+        ('chest', 'Chest'),
+        ('abdomen', 'Abdomen'),
+        ('back', 'Back'),
+        ('arms_legs', 'Arms/Legs'),
+        ('pelvic', 'Pelvic'),
+        ('all_over', 'All over')
+    ], validators=[DataRequired()])
+    
+    additional_notes = TextAreaField('Additional Notes', 
+                                   render_kw={"placeholder": "Any other relevant information about the symptoms"})
+    
     submit = SubmitField('Add Patient')
 
 

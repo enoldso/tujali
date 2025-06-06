@@ -465,7 +465,7 @@ class Patient:
         """Get total number of patients"""
         return len(db['patients'])
     
-    def add_symptom(self, symptom, severity=None, category=None):
+    def add_symptom(self, symptom, severity=None, category=None, location=None, reported_date=None, reported_via='web'):
         """
         Add a symptom to patient record
         
@@ -473,6 +473,9 @@ class Patient:
             symptom (str): The symptom description text
             severity (str, optional): The severity of the symptom ('Mild', 'Moderate', or 'Severe')
             category (str, optional): The category of the symptom (e.g., 'respiratory', 'digestive')
+            location (str, optional): Location of the symptom on the body or general location
+            reported_date (datetime, optional): When the symptom was reported. Defaults to now.
+            reported_via (str, optional): How the symptom was reported ('web', 'ussd', 'walkin')
         """
         # Auto-detect severity if not provided
         if not severity:
@@ -484,32 +487,38 @@ class Patient:
                 severity = 'Mild'
             else:
                 severity = 'Unknown'
-        
+                
         # Auto-detect category if not provided
         if not category:
-            symptom_categories = {
-                'respiratory': ['cough', 'breathing', 'chest', 'breath', 'respiratory', 'pneumonia'],
-                'digestive': ['stomach', 'diarrhea', 'nausea', 'vomit', 'digest', 'abdominal'],
-                'pain': ['pain', 'ache', 'hurt', 'sore', 'headache', 'migraine'],
-                'fever': ['fever', 'temperature', 'hot', 'chills', 'cold', 'sweat'],
-                'skin': ['rash', 'itching', 'skin', 'lesion', 'bump', 'sore']
-            }
-            
-            symptom_text = symptom.lower()
-            for cat, keywords in symptom_categories.items():
-                if any(keyword in symptom_text for keyword in keywords):
-                    category = cat
-                    break
-            
-            if not category:
+            symptom_lower = symptom.lower()
+            if any(word in symptom_lower for word in ['cough', 'breath', 'sneeze', 'nose', 'throat']):
+                category = 'respiratory'
+            elif any(word in symptom_lower for word in ['fever', 'temperature', 'hot']):
+                category = 'fever'
+            elif any(word in symptom_lower for word in ['stomach', 'vomit', 'nause', 'diarrh']):
+                category = 'gastrointestinal'
+            elif any(word in symptom_lower for word in ['headache', 'pain', 'ache']):
+                category = 'pain'
+            elif any(word in symptom_lower for word in ['tired', 'fatigue', 'weak']):
+                category = 'fatigue'
+            elif any(word in symptom_lower for word in ['dizzy', 'confus', 'faint']):
+                category = 'neurological'
+            elif any(word in symptom_lower for word in ['rash', 'itch', 'skin']):
+                category = 'skin'
+            else:
                 category = 'other'
         
-        self.symptoms.append({
-            'text': symptom, 
-            'date': datetime.now(),
+        symptom_data = {
+            'id': len(self.symptoms) + 1,
+            'text': symptom,
+            'date': (reported_date or datetime.now()).strftime('%Y-%m-%d %H:%M:%S'),
             'severity': severity,
-            'category': category
-        })
+            'category': category,
+            'location': location or 'Not specified',
+            'reported_via': reported_via
+        }
+        self.symptoms.append(symptom_data)
+        return symptom_data
         
     def update_coordinates(self, latitude, longitude):
         """Update patient's geographical coordinates"""

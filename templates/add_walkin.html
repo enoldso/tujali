@@ -87,17 +87,79 @@
                                     </div>
                                 </div>
 
-                                <div class="mb-3">
-                                    <label for="chief_complaint" class="form-label">Chief Complaint</label>
-                                    {{ form.chief_complaint(class="form-control", id="chief_complaint", rows="3") }}
-                                    <div class="form-text">Brief description of the patient's main concern or symptoms</div>
-                                    {% if form.chief_complaint.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {% for error in form.chief_complaint.errors %}
-                                        <span>{{ error }}</span>
-                                        {% endfor %}
+                                <!-- Chief Complaint -->
+                                <div class="mb-4">
+                                    <h5 class="mb-3">Symptom Details</h5>
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label for="chief_complaint" class="form-label">Chief Complaint</label>
+                                                {{ form.chief_complaint(class="form-control", id="chief_complaint", rows="2") }}
+                                                <div class="form-text">Brief description of the patient's main concern or symptoms</div>
+                                                {% if form.chief_complaint.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in form.chief_complaint.errors %}
+                                                    <span>{{ error }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                                {% endif %}
+                                            </div>
+
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label for="symptom_duration" class="form-label">Duration of Symptoms</label>
+                                                        {{ form.symptom_duration(class="form-select") }}
+                                                        {% if form.symptom_duration.errors %}
+                                                        <div class="invalid-feedback d-block">
+                                                            {% for error in form.symptom_duration.errors %}
+                                                            <span>{{ error }}</span>
+                                                            {% endfor %}
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label for="symptom_severity" class="form-label">Severity</label>
+                                                        {{ form.symptom_severity(class="form-select") }}
+                                                        {% if form.symptom_severity.errors %}
+                                                        <div class="invalid-feedback d-block">
+                                                            {% for error in form.symptom_severity.errors %}
+                                                            <span>{{ error }}</span>
+                                                            {% endfor %}
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="symptom_location" class="form-label">Location of Symptoms</label>
+                                                {{ form.symptom_location(class="form-select") }}
+                                                {% if form.symptom_location.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in form.symptom_location.errors %}
+                                                    <span>{{ error }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                                {% endif %}
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label for="additional_notes" class="form-label">Additional Notes</label>
+                                                {{ form.additional_notes(class="form-control", rows="2") }}
+                                                <div class="form-text">Any other relevant information about the symptoms</div>
+                                                {% if form.additional_notes.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {% for error in form.additional_notes.errors %}
+                                                    <span>{{ error }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
                                     </div>
-                                    {% endif %}
                                 </div>
 
                                 <div class="d-grid gap-2 d-md-flex justify-content-md-end">

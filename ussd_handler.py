@@ -528,7 +528,41 @@ def handle_symptoms(session, input_text):
     
     if state == 'symptom_description':
         session['data']['symptoms'] = input_text
-        patient.add_symptom(input_text)
+        
+        # Ask about symptom location
+        if session['language'] == 'en':
+            response = "Where are you experiencing these symptoms?\n"
+            response += "1. Head\n"
+            response += "2. Chest\n"
+            response += "3. Stomach\n"
+            response += "4. Arms/Legs\n"
+            response += "5. Back\n"
+            response += "6. All over"
+        elif session['language'] == 'sw':
+            response = "Unahisi dalili hizi sehemu gani ya mwili?\n"
+            response += "1. Kichwani\n"
+            response += "2. Kifuani\n"
+            response += "3. Tumbo\n"
+            response += "4. Mikono/Miguu\n"
+            response += "5. Mgongoni\n"
+            response += "6. Mwilini kote"
+        else:
+            response = "Where are you experiencing these symptoms?\n"
+            response += "1. Head\n2. Chest\n3. Stomach\n4. Arms/Legs\n5. Back\n6. All over"
+            
+        session['state'] = 'symptom_location'
+        return respond(response)
+        
+    elif state == 'symptom_location':
+        location_map = {
+            '1': 'Head',
+            '2': 'Chest',
+            '3': 'Stomach',
+            '4': 'Arms/Legs',
+            '5': 'Back',
+            '6': 'All over'
+        }
+        session['data']['location'] = location_map.get(input_text, 'Not specified')
         
         # Ask about symptom duration
         if session['language'] == 'en':
@@ -537,12 +571,15 @@ def handle_symptoms(session, input_text):
             response += "2. Few days\n"
             response += "3. A week or more\n"
             response += "4. A month or more"
-        else:
+        elif session['language'] == 'sw':
             response = "Umepatwa na dalili hizi kwa muda gani?\n"
             response += "1. Leo tu\n"
             response += "2. Siku chache\n"
             response += "3. Wiki moja au zaidi\n"
             response += "4. Mwezi mmoja au zaidi"
+        else:
+            response = "How long have you had these symptoms?\n"
+            response += "1. Today only\n2. Few days\n3. A week or more\n4. A month or more"
         
         session['state'] = 'symptom_duration'
         return respond(response)
@@ -587,12 +624,18 @@ def handle_symptoms(session, input_text):
             symptom_text = session['data']['symptoms']
             symptom_severity = session['data']['severity']
             symptom_duration = session['data']['duration']
+            symptom_location = session['data'].get('location', 'Not specified')
             
             # Update the symptom text to include duration for better categorization
             enhanced_symptom_text = f"{symptom_text} for {symptom_duration}"
             
-            # Add the symptom to patient record with severity
-            patient.add_symptom(enhanced_symptom_text, severity=symptom_severity)
+            # Add the symptom to patient record with all metadata
+            patient.add_symptom(
+                symptom=enhanced_symptom_text,
+                severity=symptom_severity,
+                location=symptom_location,
+                reported_via='ussd'
+            )
             
             # Find an available provider
             provider = Provider.get_all()[0]  # For simplicity, get the first provider

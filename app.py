@@ -1,5 +1,6 @@
 import os
 import logging
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, abort
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -212,7 +213,7 @@ def logout():
 @app.route('/add_walkin', methods=['GET', 'POST'])
 @login_required
 def add_walkin():
-    """Add a walk-in patient"""
+    """Add a walk-in patient with detailed symptom information"""
     provider = Provider.get_by_user_id(current_user.id)
     if not provider:
         flash('Provider profile not found', 'danger')
@@ -224,42 +225,90 @@ def add_walkin():
             # Create new patient
             patient = Patient(
                 name=form.name.data,
-                phone_number=form.phone.data,  # Changed from phone to phone_number to match model
+                phone_number=form.phone.data,
                 age=form.age.data,
                 gender=form.gender.data,
-                # Removed provider_id as it's not in the Patient model
-                # is_walk_in is not in the model, so we'll store it in notes
             )
             db_ext.session.add(patient)
             db_ext.session.flush()  # To get the patient.id
             
+            # Helper function to get choice label from value
+            def get_choice_label(choices, value):
+                for choice_value, label in choices:
+                    if choice_value == value:
+                        return label
+                return str(value)  # Return the raw value if not found
+
+            # Format symptom details for notes
+            symptom_details = {
+                'chief_complaint': form.chief_complaint.data,
+                'duration': get_choice_label(form.symptom_duration.choices, form.symptom_duration.data),
+                'severity': form.symptom_severity.data.split(' - ')[0],
+                'location': get_choice_label(form.symptom_location.choices, form.symptom_location.data),
+                'additional_notes': form.additional_notes.data
+            }
+            
             # Create a new appointment for the walk-in
             from datetime import datetime
+            now = datetime.now()
+            
             appointment = Appointment(
                 patient_id=patient.id,
                 provider_id=provider.id,
-                date=datetime.now().date(),
-                time=datetime.now().time(),
-                status='completed',  # Mark as completed since it's a walk-in
-                notes=f'Walk-in patient. Chief complaint: {form.chief_complaint.data}'
+                date=now.date(),
+                time=now.time(),
+                status='completed',
+                notes=f"""Walk-in patient. 
+                Chief Complaint: {symptom_details['chief_complaint']}
+                Duration: {symptom_details['duration']}
+                Severity: {symptom_details['severity']}
+                Location: {symptom_details['location']}
+                Notes: {symptom_details['additional_notes']}"""
             )
             db_ext.session.add(appointment)
+            
+            # Add symptom to patient's health record
+            health_info = HealthInfo(
+                title=f"{symptom_details['severity']} {symptom_details['location']} symptoms",
+                content=(
+                    f"Chief Complaint: {symptom_details['chief_complaint']}\n"
+                    f"Duration: {symptom_details['duration']}\n"
+                    f"Severity: {symptom_details['severity']}\n"
+                    f"Location: {symptom_details['location']}\n"
+                    f"Additional Notes: {symptom_details['additional_notes']}"
+                ),
+                category='symptom',
+                language='en'  # Default language
+            )
+            db_ext.session.add(health_info)
+            
+            # Track this interaction
+            track_interaction(
+                patient_id=patient.id,
+                interaction_type='walk_in_registration',
+                description='Patient registered via walk-in',
+                metadata={
+                    'symptom_severity': symptom_details['severity'],
+                    'symptom_location': symptom_details['location']
+                }
+            )
             
             # Commit all changes
             db_ext.session.commit()
             
             flash(f'Walk-in patient {patient.name} added successfully!', 'success')
-            logger.info(f'New walk-in patient added: {patient.name} (ID: {patient.id})')
+            logger.info(f'New walk-in patient added: {patient.name} (ID: {patient.id}) with symptoms')
             return redirect(url_for('patient_detail', patient_id=patient.id))
             
         except Exception as e:
             db_ext.session.rollback()
-            logger.error(f'Error adding walk-in patient: {str(e)}')
+            error_details = str(e)
+            logger.error(f'Error adding walk-in patient: {error_details}')
             logger.exception('Error details:')
-            flash('An error occurred while adding the walk-in patient. Please try again.', 'danger')
+            flash(f'Error adding walk-in patient: {error_details}. Please check the logs for more details.', 'danger')
     
     # Get unread message count for the sidebar
-    unread_count = Message.get_unread_count(provider.id)
+    unread_count = Message.get_unread_count(provider.id) if provider else 0
     
     return render_template('add_walkin.html', 
                          form=form, 
@@ -333,10 +382,62 @@ def patient_detail(patient_id):
 @app.route('/appointments')
 @login_required
 def appointments():
-    """List and manage appointments"""
+    """List and manage appointments with calendar view"""
     provider = Provider.get_by_user_id(current_user.id)
-    appointment_list = Appointment.get_by_provider(provider.id)
-    return render_template('appointments.html', provider=provider, appointments=appointment_list)
+    
+    # Get all appointments for the provider
+    appointment_list = Appointment.query.filter_by(provider_id=provider.id).order_by(Appointment.date.asc(), Appointment.time.asc()).all()
+    
+    # Prepare calendar events in FullCalendar format
+    calendar_events = []
+    for appt in appointment_list:
+        # Skip if date or time is None
+        if not appt.date or not appt.time:
+            continue
+            
+        # Combine date and time
+        start_datetime = datetime.combine(appt.date, appt.time)
+        end_datetime = start_datetime + timedelta(minutes=30)  # Default 30-minute appointment
+        
+        # Determine event color based on status
+        status_colors = {
+            'pending': '#ffc107',    # Yellow
+            'confirmed': '#198754',  # Green
+            'completed': '#0dcaf0',  # Cyan
+            'cancelled': '#dc3545'   # Red
+        }
+        
+        # Get patient name if available
+        patient = Patient.query.get(appt.patient_id)
+        patient_name = patient.name if patient else f"Patient {appt.patient_id}"
+        
+        # Create event object
+        event = {
+            'id': appt.id,
+            'title': f"{patient_name} - {appt.status.upper()}",
+            'start': start_datetime.isoformat(),
+            'end': end_datetime.isoformat(),
+            'status': appt.status,
+            'patient_id': appt.patient_id,
+            'patient_name': patient_name,
+            'notes': appt.notes or '',
+            'color': status_colors.get(appt.status, '#6c757d'),  # Default gray
+            'textColor': '#ffffff',  # White text for better contrast
+            'editable': appt.status in ['pending', 'confirmed'],
+            'extendedProps': {
+                'patient_phone': patient.phone_number if patient else 'N/A'
+            }
+        }
+        calendar_events.append(event)
+    
+    # Get dates with appointments for the mini-calendar
+    appointment_dates = list(set([appt.date for appt in appointment_list if appt.date]))
+    
+    return render_template('appointments.html', 
+                         provider=provider, 
+                         appointments=appointment_list,
+                         calendar_events=calendar_events,
+                         appointment_dates=appointment_dates)
 
 @app.route('/appointment/update', methods=['POST'])
 @login_required
@@ -502,16 +603,20 @@ def symptom_dashboard():
             confidence = 0
             matched_keywords = []
             
+            # First check for exact matches in the symptom text
+            symptom_words = symptom_text.lower().split()
+            
             for cat, data in symptom_categories.items():
                 for keyword in data['keywords']:
-                    if keyword in symptom_text:
+                    # Check if keyword matches any word in the symptom text
+                    if any(keyword in word for word in symptom_words):
                         category = cat
                         confidence += 1
                         matched_keywords.append(keyword)
                         break  # Count each category only once per keyword match
             
             # Normalize confidence score (0.0 to 1.0)
-            confidence = min(1.0, confidence / 3)
+            confidence = min(1.0, confidence / 3) if confidence > 0 else 0
             
             # Determine severity
             severity = 'Unknown'
@@ -530,7 +635,12 @@ def symptom_dashboard():
             recent_symptoms[symptom_key]['count'] += 1
             recent_symptoms[symptom_key]['dates'].add(symptom_date.date())
             
-            # Add to symptom data
+            # Get symptom metadata with defaults
+            symptom_location = symptom_entry.get('location', 'Not specified')
+            symptom_severity = symptom_entry.get('severity', severity)  # Use detected severity as fallback
+            reported_via = symptom_entry.get('reported_via', 'unknown')
+            
+            # Add to symptom data with enhanced metadata
             symptom_data.append({
                 'patient_id': patient.id,
                 'patient_name': patient.name,
@@ -538,15 +648,23 @@ def symptom_dashboard():
                 'normalized_name': symptom_text.split()[0],  # First word as normalized name
                 'category': category,
                 'confidence': confidence,
-                'severity': severity,
+                'severity': symptom_severity,
+                'location': symptom_location,
+                'reported_via': reported_via,
                 'date': symptom_date,
-                'location': patient.location or 'Unknown',
-                'matched_keywords': matched_keywords
+                'patient_location': patient.location or 'Unknown',
+                'matched_keywords': matched_keywords,
+                'raw_data': dict(symptom_entry)  # Include all raw symptom data
             })
             
-            # Update location data
-            location = patient.location or 'Unknown'
-            location_data[location] = location_data.get(location, 0) + 1
+            # Update location data (using symptom-specific location if available)
+            location_key = f"{symptom_location} (Patient: {patient.location or 'Unknown'})"
+            location_data[location_key] = location_data.get(location_key, 0) + 1
+            
+            # Track reporting method
+            if 'reporting_methods' not in locals():
+                reporting_methods = {}
+            reporting_methods[reported_via] = reporting_methods.get(reported_via, 0) + 1
     
     # Detect potential outbreaks (symptoms with high frequency in last 7 days)
     outbreak_signals = []

@@ -4,28 +4,89 @@
 
 {% block extra_css %}
 <style>
+  /* Category colors and badges */
   .symptom-card {
-    transition: transform 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s;
   }
   .symptom-card:hover {
-    transform: translateY(-5px);
+    transform: translateY(-3px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
   }
   
-  /* Category colors */
-  .category-respiratory { border-left: 4px solid #0d6efd; }
-  .category-fever { border-left: 4px solid #dc3545; }
-  .category-gastrointestinal { border-left: 4px solid #198754; }
-  .category-pain { border-left: 4px solid #fd7e14; }
-  .category-fatigue { border-left: 4px solid #6f42c1; }
-  .category-neurological { border-left: 4px solid #20c997; }
-  .category-skin { border-left: 4px solid #ffc107; }
-  .category-other { border-left: 4px solid #6c757d; }
+  /* Category colors for table rows */
+  .symptom-row {
+    transition: background-color 0.2s;
+  }
+  .symptom-row:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
   
-  /* Severity indicators */
-  .severity-Mild { border-top: 3px solid #20c997; }
-  .severity-Moderate { border-top: 3px solid #fd7e14; }
-  .severity-Severe { border-top: 3px solid #dc3545; }
-  .severity-Unknown { border-top: 3px solid #6c757d; }
+  .category-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 500;
+    color: white;
+  }
+  
+  /* Severity badges */
+  .severity-mild {
+    background-color: #d1f7e5;
+    color: #0a3622;
+  }
+  .severity-moderate {
+    background-color: #fff3cd;
+    color: #664d03;
+  }
+  .severity-severe {
+    background-color: #f8d7da;
+    color: #58151c;
+  }
+  .severity-unknown {
+    background-color: #e2e3e5;
+    color: #2b2f32;
+  }
+  
+  /* Symptom details */
+  .details-cell {
+    position: relative;
+  }
+  
+  .toggle-details {
+    padding: 0.15rem 0.35rem;
+    font-size: 0.75rem;
+  }
+  
+  .symptom-text {
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 1200px) {
+    .symptom-text {
+      max-width: 200px;
+    }
+  }
+  
+  @media (max-width: 992px) {
+    .symptom-text {
+      max-width: 150px;
+    }
+  }
+  
+  /* Raw data styling */
+  pre {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 0;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+  }
   
   .filters-container {
     background-color: rgba(0,0,0,0.05); 
@@ -319,16 +380,28 @@
           <input type="text" class="form-control" placeholder="Search symptoms..." id="symptomSearch" aria-describedby="search-addon">
         </div>
       </div>
-      <div class="card-body p-0">
+      <div class="card-body">
         <div class="table-responsive">
-          <table class="table table-hover" id="symptomTable">
-            <thead>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="btn-group" role="group">
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleDetails">
+                <i class="bi bi-layout-sidebar-inset"></i> Toggle Details
+              </button>
+            </div>
+            <div class="input-group" style="max-width: 300px;">
+              <span class="input-group-text"><i class="bi bi-search"></i></span>
+              <input type="text" class="form-control" id="symptomSearch" placeholder="Search symptoms...">
+            </div>
+          </div>
+          <table id="symptomTable" class="table table-hover">
+            <thead class="table-light">
               <tr>
                 <th>Patient</th>
                 <th>Symptom</th>
+                <th>Details <small class="text-muted">(Click to expand)</small></th>
                 <th>Category</th>
                 <th>Severity</th>
-                <th>Location</th>
+                <th>Reported</th>
                 <th>Date</th>
                 <th>Actions</th>
               </tr>
@@ -336,32 +409,77 @@
             <tbody>
               {% if symptom_data %}
                 {% for symptom in symptom_data %}
-                <tr data-category="{{ symptom.category }}" data-severity="{{ symptom.severity }}" data-location="{{ symptom.location }}">
-                  <td>
-                    <a href="{{ url_for('patient_detail', patient_id=symptom.patient_id) }}">{{ symptom.patient_name }}</a>
-                  </td>
-                  <td>{{ symptom.symptom|capitalize }}</td>
-                  <td>
-                    <span class="badge bg-{{ 'primary' if symptom.category == 'respiratory' else 'warning' if symptom.category == 'digestive' else 'danger' if symptom.category == 'pain' else 'info' if symptom.category == 'fever' else 'success' if symptom.category == 'skin' else 'secondary' }}">
-                      {{ symptom.category|capitalize }}
-                    </span>
-                  </td>
-                  <td>
-                    <span class="badge bg-{{ 'success' if symptom.severity == 'Mild' else 'warning' if symptom.severity == 'Moderate' else 'danger' if symptom.severity == 'Severe' else 'secondary' }}">
-                      {{ symptom.severity }}
-                    </span>
-                  </td>
-                  <td>{{ symptom.location }}</td>
-                  <td>{{ symptom.date.strftime('%d %b %Y') }}</td>
-                  <td>
-                    <a href="{{ url_for('patient_messages', patient_id=symptom.patient_id) }}" class="btn btn-sm btn-outline-primary">
-                      <i data-feather="message-square" style="width: 14px; height: 14px;"></i>
+              <tr class="symptom-row category-{{ symptom.category }}" data-category="{{ symptom.category }}" data-severity="{{ symptom.severity }}" data-location="{{ symptom.location|lower }}" data-date="{{ symptom.date.strftime('%Y-%m-%d') if symptom.date else '' }}">
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="me-2">
+                      <i class="bi bi-person-circle"></i>
+                    </div>
+                    <div>
+                      <div class="fw-bold">{{ symptom.patient_name }}</div>
+                      <small class="text-muted">ID: {{ symptom.patient_id }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="symptom-text fw-bold">{{ symptom.symptom|truncate(50) }}</div>
+                  {% if symptom.matched_keywords %}
+                  <div class="small text-muted">
+                    <i class="bi bi-tags"></i> {{ symptom.matched_keywords|join(', ') }}
+                  </div>
+                  {% endif %}
+                </td>
+                <td class="details-cell">
+                  <button class="btn btn-sm btn-outline-secondary toggle-details" data-bs-toggle="collapse" data-bs-target="#details-{{ loop.index }}">
+                    <i class="bi bi-chevron-down"></i>
+                  </button>
+                  <div id="details-{{ loop.index }}" class="collapse">
+                    <div class="small mt-2">
+                      <div><i class="bi bi-geo-alt"></i> <strong>Location:</strong> {{ symptom.location or 'Not specified' }}</div>
+                      <div><i class="bi bi-clock-history"></i> <strong>Reported via:</strong> {{ symptom.reported_via|title }}</div>
+                      {% if symptom.raw_data %}
+                        <div class="mt-1">
+                          <button class="btn btn-sm btn-link p-0 text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#rawData-{{ loop.index }}">
+                            <i class="bi bi-code-slash"></i> View raw data
+                          </button>
+                          <div id="rawData-{{ loop.index }}" class="collapse">
+                            <pre class="small bg-light p-2 mt-2">{{ symptom.raw_data|tojson(indent=2) }}</pre>
+                          </div>
+                        </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge rounded-pill category-badge" style="background-color: {{ symptom_categories[symptom.category].color if symptom.category in symptom_categories else '#6c757d' }};">
+                    <i class="bi bi-{{ symptom_categories[symptom.category].icon if symptom.category in symptom_categories else 'tag' }}"></i>
+                    {{ symptom.category|capitalize }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge rounded-pill severity-{{ symptom.severity|lower }}">
+                    <i class="bi bi-{{ 'check-circle' if symptom.severity == 'Mild' else 'exclamation-triangle' if symptom.severity == 'Moderate' else 'exclamation-octagon' if symptom.severity == 'Severe' else 'question-circle' }}"></i>
+                    {{ symptom.severity }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge bg-light text-dark">
+                    <i class="bi bi-{{ 'phone' if symptom.reported_via == 'ussd' else 'person' if symptom.reported_via == 'walkin' else 'globe' }}"></i>
+                    {{ symptom.reported_via|title }}
+                  </span>
+                </td>
+                <td>{{ symptom.date.strftime('%Y-%m-%d %H:%M') if symptom.date else 'N/A' }}</td>
+                <td>
+                  <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-primary view-details" data-bs-toggle="modal" data-bs-target="#symptomDetailModal" data-symptom='{{ symptom|tojson }}' title="View Details">
+                      <i class="bi bi-eye"></i>
+                    </button>
+                    <a href="{{ url_for('patient_detail', patient_id=symptom.patient_id) }}" class="btn btn-outline-secondary" title="View Patient">
+                      <i class="bi bi-person-lines"></i>
                     </a>
-                    <a href="{{ url_for('patient_detail', patient_id=symptom.patient_id) }}" class="btn btn-sm btn-outline-info">
-                      <i data-feather="user" style="width: 14px; height: 14px;"></i>
-                    </a>
-                  </td>
-                </tr>
+                  </div>
+                </td>
+              </tr>
                 {% endfor %}
               {% else %}
                 <tr>
@@ -414,31 +532,187 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tableexport.jquery.plugin@1.10.21/tableExport.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tableexport.jquery.plugin@1.10.21/libs/js-xlsx/xlsx.core.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tableexport.jquery.plugin@1.10.21/libs/FileSaver/FileSaver.min.js"></script>
+
+<!-- DataTables CSS -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css"/>
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap5.min.css"/>
+
+<!-- DataTables JS -->
+<script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+
+<!-- DataTables Buttons -->
+<script type="text/javascript" src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.print.min.js"></script>
+
+<!-- Custom JS -->
+<script></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Initialize feather icons in dynamic content
-  feather.replace();
-  
-  // Initialize tooltips
-  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-  tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl);
-  });
+  document.addEventListener('DOMContentLoaded', function() {
+    // Toggle details for each symptom row
+    document.querySelectorAll('.toggle-details').forEach(button => {
+      button.addEventListener('click', function(e) {
+        const icon = this.querySelector('i');
+        if (icon) {
+          icon.classList.toggle('bi-chevron-down');
+          icon.classList.toggle('bi-chevron-up');
+        }
+      });
+    });
+    
+    // Toggle all details
+    const toggleAllBtn = document.getElementById('toggleDetails');
+    if (toggleAllBtn) {
+      toggleAllBtn.addEventListener('click', function() {
+        const buttons = document.querySelectorAll('.toggle-details');
+        const isExpanded = this.getAttribute('aria-expanded') === 'true';
+        
+        buttons.forEach(btn => {
+          const targetId = btn.getAttribute('data-bs-target');
+          const target = targetId ? document.querySelector(targetId) : null;
+          const icon = btn.querySelector('i');
+          
+          if (isExpanded) {
+            btn.classList.add('collapsed');
+            if (target) target.classList.remove('show');
+            if (icon) {
+              icon.classList.remove('bi-chevron-up');
+              icon.classList.add('bi-chevron-down');
+            }
+          } else {
+            btn.classList.remove('collapsed');
+            if (target) target.classList.add('show');
+            if (icon) {
+              icon.classList.remove('bi-chevron-down');
+              icon.classList.add('bi-chevron-up');
+            }
+          }
+        });
+        
+        this.setAttribute('aria-expanded', !isExpanded);
+        const newText = isExpanded ? 'Show Details' : 'Hide Details';
+        this.innerHTML = `<i class="bi bi-layout-sidebar-inset${isExpanded ? '' : '-reverse'}"></i> ${newText}`;
+      });
+    }
+    
+    // Initialize tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(tooltipTriggerEl => {
+      new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Search functionality
+    const searchInput = document.getElementById('symptomSearch');
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const rows = document.querySelectorAll('.symptom-row');
+        
+        rows.forEach(row => {
+          const text = row.textContent.toLowerCase();
+          row.style.display = text.includes(searchTerm) ? '' : 'none';
+        });
+      });
+    }
+    
+    // Filter by severity
+    document.querySelectorAll('.severity-filter').forEach(button => {
+      button.addEventListener('click', function() {
+        const severity = this.getAttribute('data-severity');
+        const rows = document.querySelectorAll('.symptom-row');
+        
+        // Toggle active class
+        document.querySelectorAll('.severity-filter').forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+        
+        rows.forEach(row => {
+          if (severity === 'all') {
+            row.style.display = '';
+          } else {
+            const rowSeverity = row.getAttribute('data-severity').toLowerCase();
+            row.style.display = rowSeverity === severity ? '' : 'none';
+          }
+        });
+      });
+    });
+    
+    // Initialize DataTable if it exists
+    if (typeof $.fn.DataTable !== 'undefined' && document.getElementById('symptomTable')) {
+      const symptomTable = $('#symptomTable').DataTable({
+        pageLength: 25,
+        order: [[6, 'desc']], // Sort by date by default
+        dom: '<"d-flex justify-content-between align-items-center mb-3"f<"ms-3"l>>rt<"d-flex justify-content-between align-items-center"ip>',
+        language: {
+          search: "",
+          searchPlaceholder: "Search symptoms...",
+          lengthMenu: "_MENU_ records per page",
+          info: "Showing _START_ to _END_ of _TOTAL_ entries",
+          infoEmpty: "No entries found",
+          infoFiltered: "(filtered from _MAX_ total entries)",
+          paginate: {
+            previous: '<i class="bi bi-chevron-left"></i>',
+            next: '<i class="bi bi-chevron-right"></i>'
+          }
+        },
+        columnDefs: [
+          { orderable: false, targets: [2, 7] }, // Disable sorting on details and actions columns
+          { className: 'text-nowrap', targets: [0, 3, 4, 5, 6] } // Apply nowrap to certain columns
+        ],
+        initComplete: function() {
+          // Add custom search input
+          $('.dataTables_filter input').addClass('form-control form-control-sm');
+          $('.dataTables_length select').addClass('form-select form-select-sm');
+        },
+        drawCallback: function() {
+          // Re-initialize tooltips after table redraw
+          const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+          tooltipTriggerList.forEach(tooltipTriggerEl => {
+            new bootstrap.Tooltip(tooltipTriggerEl);
+          });
+        }
+      });
+      
+      // Export buttons
+      $('#exportCSV').on('click', function() {
+        symptomTable.button('.buttons-csv').trigger();
+      });
+      
+      $('#exportExcel').on('click', function() {
+        symptomTable.button('.buttons-excel').trigger();
+      });
+      
+      $('#exportPDF').on('click', function() {
+        symptomTable.button('.buttons-pdf').trigger();
+      });
+    }
   
   // Initialize outbreak alert interactions
   document.querySelectorAll('.outbreak-alert').forEach(alert => {
     alert.addEventListener('click', function() {
       const symptom = this.querySelector('h6').textContent.split(' ')[0];
-      $('#symptomSearch').val(symptom).trigger('keyup');
+      
+      // Set the search input value and trigger search
+      const searchInput = document.getElementById('symptomSearch');
+      if (searchInput) {
+        searchInput.value = symptom;
+        const event = new Event('input', { bubbles: true });
+        searchInput.dispatchEvent(event);
+      }
       
       // Scroll to the table
-      document.getElementById('symptomTable').scrollIntoView({
-        behavior: 'smooth'
-      });
+      const symptomTable = document.getElementById('symptomTable');
+      if (symptomTable) {
+        symptomTable.scrollIntoView({
+          behavior: 'smooth'
+        });
+      }
     });
   });
   
