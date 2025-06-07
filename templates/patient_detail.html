@@ -163,6 +163,80 @@
             </div>
         </div>
         
+        <!-- Lab Results Summary -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Recent Lab Results</h5>
+                <a href="{{ url_for('patient_lab_results', patient_id=patient.id) }}" class="btn btn-sm btn-outline-primary">
+                    View All
+                </a>
+            </div>
+            <div class="card-body p-0">
+                {% if lab_results %}
+                    <div class="list-group list-group-flush">
+                        {% for result in lab_results[:3] %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i data-feather="clipboard" class="me-2"></i>
+                                        {{ result.test_name }}
+                                        {% if result.is_abnormal %}
+                                            <span class="badge bg-danger ms-2">Abnormal</span>
+                                        {% endif %}
+                                    </h6>
+                                    <div class="small text-muted">
+                                        <span class="me-3">
+                                            <i data-feather="calendar" class="feather-sm me-1"></i>
+                                            {{ result.result_date.strftime('%d %b %Y') if result.result_date else 'Pending' }}
+                                        </span>
+                                        <span>
+                                            <i data-feather="user" class="feather-sm me-1"></i>
+                                            {{ result.provider.name if result.provider else 'N/A' }}
+                                        </span>
+                                    </div>
+                                    {% if result.results %}
+                                        <div class="mt-2">
+                                            {% set results_data = result.results|from_json if result.results is string else result.results %}
+                                            {% if results_data is mapping %}
+                                                {% for key, value in results_data.items() %}
+                                                    <span class="badge bg-light text-dark me-1 mb-1">
+                                                        {{ key }}: {{ value }}
+                                                    </span>
+                                                {% endfor %}
+                                            {% elif results_data is iterable and results_data is not string %}
+                                                {% for item in results_data %}
+                                                    <span class="badge bg-light text-dark me-1 mb-1">
+                                                        {{ item.component }}: {{ item.result }}
+                                                    </span>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <a href="{{ url_for('view_lab_result', result_id=result.id) }}" class="btn btn-sm btn-outline-secondary">
+                                    View Details
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i data-feather="clipboard" class="mb-2 text-muted"></i>
+                        <p class="mb-0 text-muted">No lab results found</p>
+                    </div>
+                {% endif %}
+            </div>
+            {% if lab_results|length > 3 %}
+            <div class="card-footer bg-transparent text-center">
+                <a href="{{ url_for('patient_lab_results', patient_id=patient.id) }}" class="btn btn-link">
+                    View all {{ lab_results|length }} lab results
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        
         <!-- Appointments -->
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-transparent">

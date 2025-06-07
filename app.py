@@ -497,13 +497,21 @@ def patient_detail(patient_id):
     
     print(f"Found {len(medical_history)} medical history records")
     
+    # Get recent lab results for the patient (most recent 5)
+    lab_results = LabResult.query.filter_by(
+        patient_id=patient_id
+    ).order_by(
+        LabResult.result_date.desc()
+    ).limit(5).all()
+    
     return render_template('patient_detail.html', 
                           provider=provider,
                           patient=patient,
                           appointments=appointments,
                           messages=messages,
                           symptoms=symptoms,
-                          medical_history=medical_history)
+                          medical_history=medical_history,
+                          lab_results=lab_results)
 
 @app.route('/appointments')
 @login_required
