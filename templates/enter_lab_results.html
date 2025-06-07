@@ -16,12 +16,13 @@
                 </div>
                 <div class="card-body">
                     <form id="labResultsForm" method="POST" action="{{ url_for('enter_lab_results', result_id=result.id) }}">
-                        <input type="hidden" name="_method" value="POST">
-                        <input type="hidden" name="status" id="formStatus" value="pending">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="is_abnormal" id="isAbnormal" value="{{ 'true' if result.is_abnormal else 'false' }}">
                         
                         <div class="form-group">
                             <label>Test Results</label>
                             <div id="resultsContainer">
+                                <!-- Dynamic rows will be added here -->
                                 <div class="form-row mb-3">
                                     <div class="col-md-5">
                                         <input type="text" class="form-control" name="test_component" placeholder="Test Component" required>
@@ -39,31 +40,28 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="mt-2">
-                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow()">
-                                    <i class="fas fa-plus"></i> Add Row
-                                </button>
-                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm mt-2" onclick="addRow()">
+                                <i class="fas fa-plus"></i> Add Test Result
+                            </button>
                         </div>
-
-                        <div class="form-group mt-4">
-                            <label for="resultNotes">Notes</label>
-                            <textarea class="form-control" id="resultNotes" name="notes" rows="3" 
-                                placeholder="Additional notes about the test results">{{ result.notes or '' }}</textarea>
+                        
+                        <div class="form-group">
+                            <label for="notes">Notes</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3">{{ result.notes or '' }}</textarea>
                         </div>
                         
                         <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="abnormalFlag" name="is_abnormal">
-                            <label class="form-check-label" for="abnormalFlag">
-                                Mark results as abnormal
+                            <input class="form-check-input" type="checkbox" id="abnormalCheck" onchange="document.getElementById('isAbnormal').value = this.checked">
+                            <label class="form-check-label" for="abnormalCheck">
+                                Mark as Abnormal
                             </label>
                         </div>
                         
-                        <div class="d-flex justify-content-between mt-4">
-                            <button type="submit" class="btn btn-secondary" onclick="setFormStatus('pending')">
+                        <div class="card-footer text-right">
+                            <button type="submit" class="btn btn-secondary" name="status" value="pending">
                                 <i class="fas fa-save"></i> Save as Draft
                             </button>
-                            <button type="submit" class="btn btn-primary" onclick="return confirmSubmit()">
+                            <button type="submit" class="btn btn-primary" name="status" value="completed" onclick="return confirm('Are you sure you want to mark this test as complete? This action cannot be undone.');">
                                 <i class="fas fa-check"></i> Complete Test
                             </button>
                         </div>
@@ -124,7 +122,7 @@
 {% block scripts %}
 {{ super() }}
 <script>
-// Simple function to add a new row to the form
+// Add and remove test result rows
 function addRow() {
     const row = `
         <div class="form-row mb-3">
@@ -147,41 +145,63 @@ function addRow() {
     document.getElementById('resultsContainer').insertAdjacentHTML('beforeend', row);
 }
 
-// Function to remove a row
 function removeRow(button) {
     const rows = document.querySelectorAll('#resultsContainer .form-row');
     if (rows.length > 1) {
         button.closest('.form-row').remove();
     } else {
-        // Clear the inputs instead of removing the last row
         const inputs = button.closest('.form-row').querySelectorAll('input');
         inputs.forEach(input => input.value = '');
     }
 }
 
-// Function to set form status before submission
-function setFormStatus(status) {
-    document.getElementById('formStatus').value = status;
-    return true;
-}
-
-// Function to confirm test completion
-function confirmSubmit() {
-    if (confirm('Are you sure you want to mark this test as complete? This action cannot be undone.')) {
-        setFormStatus('completed');
-        return true;
-    }
-    return false;
-}
-
 // Initialize the page
+document.addEventListener('DOMContentLoaded', function() {
     // Initialize any necessary components here
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
-});
     
-    console.log('Button handlers set up');
-}); // End of document.ready
+    // Set initial abnormal status if needed
+    const abnormalCheck = document.getElementById('abnormalCheck');
+    const isAbnormalInput = document.getElementById('isAbnormal');
+    
+    if (abnormalCheck && isAbnormalInput) {
+        const isAbnormal = isAbnormalInput.value === 'true';
+        abnormalCheck.checked = isAbnormal;
+        
+        // Update hidden input when checkbox changes
+        abnormalCheck.addEventListener('change', function() {
+            isAbnormalInput.value = this.checked ? 'true' : 'false';
+        });
+    }
+    
+    // Set up form submission
+    const form = document.getElementById('labResultsForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            // Ensure the form is valid before submission
+            if (!form.checkValidity()) {
+                e.preventDefault();
+                e.stopPropagation();
+                form.classList.add('was-validated');
+                return false;
+            }
+            
+            // Show loading state
+            const submitButtons = form.querySelectorAll('button[type="submit"]');
+            submitButtons.forEach(btn => {
+                btn.disabled = true;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+                btn.dataset.originalText = originalText;
+            });
+            
+            return true;
+        });
+    }
+    
+    console.log('Page initialized');
+});
 </script>
 {% endblock %}

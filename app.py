@@ -4,7 +4,8 @@ import logging
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, abort, send_from_directory
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
-from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
+from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError, validate_csrf
+import json
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 from config import config
@@ -33,6 +34,18 @@ app = Flask(__name__)
 env = os.environ.get('FLASK_ENV', 'development')
 app.config.from_object(config[env])
 
+# Add custom Jinja2 filters
+@app.template_filter('from_json')
+def from_json(value):
+    if not value:
+        return {}
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (ValueError, TypeError):
+            return {}
+    return value
+
 # Initialize extensions
 db_ext.init_app(app)
 migrate.init_app(app, db_ext)
@@ -55,7 +68,15 @@ def inject_csrf_token():
 @app.errorhandler(CSRFError)
 def handle_csrf_error(e):
     app.logger.warning(f'CSRF Error: {e.description}')
-    return render_template('errors/csrf_error.html', error=e.description), 400
+    return render_template('errors/csrf_error.html', reason=e.description), 400
+
+def verify_csrf(token):
+    """Verify the CSRF token"""
+    try:
+        validate_csrf(token)
+        return True
+    except:
+        return False
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -1693,36 +1714,54 @@ def enter_lab_results(result_id):
     
     if request.method == 'POST':
         try:
-            data = request.get_json()
+            # Verify CSRF token
+            if not verify_csrf(request.form.get('csrf_token')):
+                if request.is_json:
+                    return jsonify({'success': False, 'error': 'Invalid CSRF token'}), 400
+                else:
+                    flash('Session expired. Please try again.', 'error')
+                    return redirect(url_for('enter_lab_results', result_id=result.id))
+            
+            # Get form data
+            status = request.form.get('status', 'pending')
+            is_abnormal = request.form.get('is_abnormal', 'false').lower() == 'true'
+            notes = request.form.get('notes', '')
+            
+            # Process test results from dynamic rows
+            test_components = request.form.getlist('test_component')
+            results = request.form.getlist('result')
+            reference_ranges = request.form.getlist('reference_range')
+            
+            # Create a list of test results
+            test_results = []
+            for i in range(len(test_components)):
+                if test_components[i] and results[i]:  # Only add if test component and result are provided
+                    test_results.append({
+                        'component': test_components[i],
+                        'result': results[i],
+                        'reference_range': reference_ranges[i] if i < len(reference_ranges) else ''
+                    })
             
             # Update result data
-            if 'results' in data:
-                result.results = data['results']
-            if 'reference_range' in data:
-                result.reference_range = data['reference_range']
-            if 'status' in data:
-                result.status = data['status']
-            if 'is_abnormal' in data:
-                result.is_abnormal = data['is_abnormal']
-            if 'notes' in data:
-                result.notes = data['notes']
+            result.results = json.dumps(test_results) if test_results else None
+            result.status = status
+            result.is_abnormal = is_abnormal
+            result.notes = notes
             
             # Update result date if completing the test
-            if data.get('status') == 'completed' and not result.result_date:
+            if status == 'completed' and not result.result_date:
                 result.result_date = datetime.utcnow()
             
             db_ext.session.commit()
             
-            return jsonify({
-                'success': True,
-                'message': 'Lab results saved successfully',
-                'result': result.to_dict()
-            })
+            flash('Lab results saved successfully', 'success')
+            return redirect(url_for('view_lab_result', result_id=result.id))
             
         except Exception as e:
             db_ext.session.rollback()
             logger.error(f"Error saving lab results: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            flash(f'Error saving lab results: {str(e)}', 'error')
+            return redirect(url_for('enter_lab_results', result_id=result.id))
     
     # GET request - show the form
     return render_template('enter_lab_results.html', 

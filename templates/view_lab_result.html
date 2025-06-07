@@ -70,19 +70,20 @@
                 </div>
                 <div class="card-body">
                     {% if result.status == 'completed' and result.results %}
-                        {% if result.results is mapping %}
-                            <div class="table-responsive">
-                                <table class="table table-bordered">
-                                    <thead>
-                                        <tr>
-                                            <th>Test Component</th>
-                                            <th>Result</th>
-                                            <th>Reference Range</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for key, value in result.results.items() %}
+                        {% set results_data = result.results|from_json if result.results is string else result.results %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>Test Component</th>
+                                        <th>Result</th>
+                                        <th>Reference Range</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if results_data is mapping %}
+                                        {% for key, value in results_data.items() %}
                                         <tr>
                                             <td>{{ key }}</td>
                                             <td>{{ value }}</td>
@@ -104,14 +105,29 @@
                                             </td>
                                         </tr>
                                         {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        {% else %}
-                            <div class="alert alert-info">
-                                {{ result.results }}
-                            </div>
-                        {% endif %}
+                                    {% elif results_data is iterable and results_data is not string %}
+                                        {% for item in results_data %}
+                                        <tr>
+                                            <td>{{ item.component or 'N/A' }}</td>
+                                            <td>{{ item.result or 'N/A' }}</td>
+                                            <td>{{ item.reference_range or 'N/A' }}</td>
+                                            <td>
+                                                {% if item.is_abnormal or (item.result and result.is_abnormal) %}
+                                                    <span class="badge badge-danger">Abnormal</span>
+                                                {% else %}
+                                                    <span class="badge badge-success">Normal</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="4" class="text-center">No results available</td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
                     {% else %}
                         <div class="text-center py-4">
                             <i class="fas fa-flask fa-3x text-gray-300 mb-3"></i>
