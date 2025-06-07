@@ -63,9 +63,9 @@
                 <div class="card-header py-3 d-flex justify-content-between align-items-center">
                     <h6 class="m-0 font-weight-bold text-primary">Test Results</h6>
                     {% if result.status != 'completed' %}
-                    <button class="btn btn-sm btn-primary" id="enterResultsBtn">
+                    <a href="{{ url_for('enter_lab_results', result_id=result.id) }}" class="btn btn-sm btn-primary" id="enterResultsBtn">
                         <i class="fas fa-edit"></i> Enter Results
-                    </button>
+                    </a>
                     {% endif %}
                 </div>
                 <div class="card-body">
@@ -117,9 +117,9 @@
                             <i class="fas fa-flask fa-3x text-gray-300 mb-3"></i>
                             <p class="text-muted">No test results available yet.</p>
                             {% if result.status != 'completed' %}
-                            <button class="btn btn-primary" id="enterResultsBtn">
+                            <a href="{{ url_for('enter_lab_results', result_id=result.id) }}" class="btn btn-primary">
                                 <i class="fas fa-edit"></i> Enter Test Results
-                            </button>
+                            </a>
                             {% endif %}
                         </div>
                     {% endif %}
@@ -161,9 +161,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="resultsModalLabel">Enter Test Results</h5>
-                <button class="close" type="button" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">×</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <form id="resultsForm">
@@ -201,7 +199,7 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
                 <button class="btn btn-primary" id="saveResultsBtn">Save Results</button>
             </div>
         </div>
@@ -262,8 +260,13 @@ $(document).ready(function() {
     });
     
     // Results modal
-    $('.enter-results-btn, #enterResultsBtn').click(function() {
-        $('#resultsModal').modal('show');
+    const resultsModal = new bootstrap.Modal(document.getElementById('resultsModal'));
+    
+    // Handle both button clicks
+    document.querySelectorAll('.enter-results-btn, #enterResultsBtn').forEach(button => {
+        button.addEventListener('click', function() {
+            resultsModal.show();
+        });
     });
     
     // Add row to results form
@@ -318,6 +321,10 @@ $(document).ready(function() {
             }
         });
         
+        // Show loading state
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...');
+        
         // Send data to server
         $.ajax({
             url: '{{ url_for("update_lab_result", result_id=result.id) }}',
@@ -326,14 +333,19 @@ $(document).ready(function() {
             data: JSON.stringify(formData),
             success: function(response) {
                 if (response.success) {
-                    window.location.reload();
+                    showAlert('Test results saved successfully!', 'success');
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 1500);
                 } else {
                     showAlert('Error saving results: ' + (response.error || 'Unknown error'), 'danger');
+                    $btn.prop('disabled', false).html('<i class="fas fa-save"></i> Save Results');
                 }
             },
             error: function(xhr) {
                 const error = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'Unknown error';
                 showAlert('Error saving results: ' + error, 'danger');
+                $btn.prop('disabled', false).html('<i class="fas fa-save"></i> Save Results');
             }
         });
     });

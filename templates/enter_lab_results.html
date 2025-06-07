@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Enter Lab Results - {{ result.test_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Enter Lab Results</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Test: {{ result.test_name }}</h6>
+                </div>
+                <div class="card-body">
+                    <form id="labResultsForm" method="POST" action="{{ url_for('enter_lab_results', result_id=result.id) }}">
+                        <input type="hidden" name="_method" value="POST">
+                        <input type="hidden" name="status" id="formStatus" value="pending">
+                        
+                        <div class="form-group">
+                            <label>Test Results</label>
+                            <div id="resultsContainer">
+                                <div class="form-row mb-3">
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control" name="test_component" placeholder="Test Component" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control" name="result" placeholder="Result" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control" name="reference_range" placeholder="Reference Range">
+                                    </div>
+                                    <div class="col-md-1 d-flex align-items-end">
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow()">
+                                    <i class="fas fa-plus"></i> Add Row
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-group mt-4">
+                            <label for="resultNotes">Notes</label>
+                            <textarea class="form-control" id="resultNotes" name="notes" rows="3" 
+                                placeholder="Additional notes about the test results">{{ result.notes or '' }}</textarea>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="abnormalFlag" name="is_abnormal">
+                            <label class="form-check-label" for="abnormalFlag">
+                                Mark results as abnormal
+                            </label>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-4">
+                            <button type="submit" class="btn btn-secondary" onclick="setFormStatus('pending')">
+                                <i class="fas fa-save"></i> Save as Draft
+                            </button>
+                            <button type="submit" class="btn btn-primary" onclick="return confirmSubmit()">
+                                <i class="fas fa-check"></i> Complete Test
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Patient Information</h6>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ result.patient.name }}</h5>
+                    <p class="card-text">
+                        <strong>Date of Birth:</strong> {{ result.patient.date_of_birth.strftime('%Y-%m-%d') if result.patient.date_of_birth else 'N/A' }}<br>
+                        <strong>Age:</strong> {{ result.patient.age or 'N/A' }} years<br>
+                        <strong>Gender:</strong> {{ result.patient.gender or 'N/A' }}<br>
+                        <strong>Patient ID:</strong> {{ result.patient.id }}
+                    </p>
+                </div>
+            </div>
+            
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Test Information</h6>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <strong>Test Name:</strong> {{ result.test_name }}<br>
+                        <strong>Test Type:</strong> {{ result.test_type }}<br>
+                        <strong>Ordered On:</strong> {{ result.test_date.strftime('%Y-%m-%d %H:%M') if result.test_date else 'N/A' }}<br>
+                        <strong>Status:</strong> 
+                        <span class="badge bg-{{ 'success' if result.status == 'completed' else 'warning' }}">
+                            {{ result.status }}
+                        </span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Message -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+// Simple function to add a new row to the form
+function addRow() {
+    const row = `
+        <div class="form-row mb-3">
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="test_component" placeholder="Test Component" required>
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control" name="result" placeholder="Result" required>
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control" name="reference_range" placeholder="Reference Range">
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    document.getElementById('resultsContainer').insertAdjacentHTML('beforeend', row);
+}
+
+// Function to remove a row
+function removeRow(button) {
+    const rows = document.querySelectorAll('#resultsContainer .form-row');
+    if (rows.length > 1) {
+        button.closest('.form-row').remove();
+    } else {
+        // Clear the inputs instead of removing the last row
+        const inputs = button.closest('.form-row').querySelectorAll('input');
+        inputs.forEach(input => input.value = '');
+    }
+}
+
+// Function to set form status before submission
+function setFormStatus(status) {
+    document.getElementById('formStatus').value = status;
+    return true;
+}
+
+// Function to confirm test completion
+function confirmSubmit() {
+    if (confirm('Are you sure you want to mark this test as complete? This action cannot be undone.')) {
+        setFormStatus('completed');
+        return true;
+    }
+    return false;
+}
+
+// Initialize the page
+    // Initialize any necessary components here
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+});
+    
+    console.log('Button handlers set up');
+}); // End of document.ready
+</script>
+{% endblock %}

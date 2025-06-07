@@ -1642,7 +1642,7 @@ def lab_results():
     provider = Provider.get_by_user_id(current_user.id)
     
     # Get recent lab results
-    recent_results = LabResult.get_by_provider(provider.id, limit=10)
+    recent_results = LabResult.query.filter_by(provider_id=provider.id).order_by(LabResult.test_date.desc()).limit(10).all()
     
     # Get counts by status
     pending_count = LabResult.query.filter_by(provider_id=provider.id, status='pending').count()
@@ -1680,6 +1680,99 @@ def view_lab_result(result_id):
     return render_template('view_lab_result.html', result=result, provider=provider)
 
 
+@app.route('/lab-results/<int:result_id>/enter-results', methods=['GET', 'POST'])
+@login_required
+def enter_lab_results(result_id):
+    """Enter or update lab test results"""
+    result = LabResult.query.get_or_404(result_id)
+    provider = Provider.get_by_user_id(current_user.id)
+    
+    # Ensure the provider has access to this result
+    if result.provider_id != provider.id:
+        abort(403)
+    
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            # Update result data
+            if 'results' in data:
+                result.results = data['results']
+            if 'reference_range' in data:
+                result.reference_range = data['reference_range']
+            if 'status' in data:
+                result.status = data['status']
+            if 'is_abnormal' in data:
+                result.is_abnormal = data['is_abnormal']
+            if 'notes' in data:
+                result.notes = data['notes']
+            
+            # Update result date if completing the test
+            if data.get('status') == 'completed' and not result.result_date:
+                result.result_date = datetime.utcnow()
+            
+            db_ext.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Lab results saved successfully',
+                'result': result.to_dict()
+            })
+            
+        except Exception as e:
+            db_ext.session.rollback()
+            logger.error(f"Error saving lab results: {str(e)}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    # GET request - show the form
+    return render_template('enter_lab_results.html', 
+                         result=result, 
+                         provider=provider,
+                         now=datetime.utcnow())
+
+
+@app.route('/lab-results/new', methods=['GET', 'POST'])
+@login_required
+def new_lab_result():
+    """Create a new lab test order"""
+    provider = Provider.get_by_user_id(current_user.id)
+    form = LabResultForm()
+    
+    # Populate patient choices
+    form.patient_id.choices = [(p.id, f"{p.name} ({p.phone_number})") for p in Patient.query.all()]
+    
+    if form.validate_on_submit():
+        try:
+            # Create new lab result
+            result = LabResult(
+                patient_id=form.patient_id.data,
+                provider_id=provider.id,
+                test_name=form.test_name.data,
+                test_type=form.test_type.data,
+                test_date=form.test_date.data,
+                notes=form.notes.data,
+                status='pending',
+                is_abnormal=False,
+                is_urgent=form.urgent.data
+            )
+            
+            db_ext.session.add(result)
+            db_ext.session.commit()
+            
+            flash('Lab test ordered successfully!', 'success')
+            return redirect(url_for('view_lab_result', result_id=result.id))
+            
+        except Exception as e:
+            db_ext.session.rollback()
+            logger.error(f"Error creating lab test: {str(e)}")
+            flash('An error occurred while creating the lab test. Please try again.', 'danger')
+    
+    return render_template('new_lab_result.html', 
+                         provider=provider,
+                         form=form,
+                         now=datetime.utcnow())
+
+
 @app.route('/lab-results/patient/<int:patient_id>')
 @login_required
 def patient_lab_results(patient_id):
@@ -1701,11 +1794,7 @@ def patient_lab_results(patient_id):
     )
 
 
-@app.route('/lab-results/new', methods=['GET', 'POST'])
-@login_required
-def new_lab_result():
-    """Create a new lab result"""
-    provider = Provider.get_by_user_id(current_user.id)
+
     form = LabResultForm()
     
     # Populate patient choices

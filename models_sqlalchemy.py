@@ -676,6 +676,7 @@ class LabResult(db.Model):
     results = db.Column(JSONB)  # Store test results as JSON
     reference_range = db.Column(JSONB)  # Normal reference ranges
     is_abnormal = db.Column(db.Boolean, default=False)
+    is_urgent = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
