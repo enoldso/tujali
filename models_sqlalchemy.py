@@ -669,6 +669,10 @@ class LabResult(db.Model):
     provider_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=False)
     test_name = db.Column(db.String(200), nullable=False)
     test_type = db.Column(db.String(100))  # e.g., 'blood', 'urine', 'imaging'
+    fee = db.Column(db.Numeric(10, 2), default=0.00)  # Test fee amount
+    fee_paid = db.Column(db.Numeric(10, 2), default=0.00)  # Amount paid so far
+    is_billed = db.Column(db.Boolean, default=False)  # Whether the test has been billed
+    billing_notes = db.Column(db.Text)  # Any notes about billing
     test_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     result_date = db.Column(db.DateTime)
     status = db.Column(db.String(20), default='pending')  # pending, completed, cancelled
@@ -677,6 +681,7 @@ class LabResult(db.Model):
     reference_range = db.Column(JSONB)  # Normal reference ranges
     is_abnormal = db.Column(db.Boolean, default=False)
     is_urgent = db.Column(db.Boolean, default=False)
+    urgency = db.Column(db.String(20), default='routine')  # routine, urgent, stat
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

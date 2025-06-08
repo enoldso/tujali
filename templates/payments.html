@@ -2,45 +2,214 @@
 
 {% block head %}
 <style>
-    .payment-card {
-        transition: transform 0.2s;
+    /* Form Styles */
+    .payment-form .form-control,
+    .payment-form .form-select {
+        background-color: #2b2b40;
+        border: 1px solid #2b2b40;
+        color: #e4e6ef;
+        transition: all 0.3s ease;
     }
-    .payment-card:hover {
-        transform: translateY(-5px);
+    
+    .payment-form .form-control:focus,
+    .payment-form .form-select:focus {
+        background-color: #2b2b40;
+        border-color: #3699ff;
+        color: #fff;
+        box-shadow: 0 0 0 0.25rem rgba(54, 153, 255, 0.25);
     }
-    .summary-card {
-        border-left: 4px solid var(--bs-primary);
+    
+    .payment-form .input-group-text {
+        background-color: #2b2b40;
+        border: 1px solid #2b2b40;
+        color: #7e8299;
     }
-    .payment-pending {
-        border-left: 4px solid #ffc107;
+    
+    .payment-form .btn-outline-primary {
+        color: #3699ff;
+        border-color: #3699ff;
     }
-    .payment-completed {
-        border-left: 4px solid #198754;
+    
+    .payment-form .btn-outline-primary:hover,
+    .payment-form .btn-check:checked + .btn-outline-primary {
+        background-color: #3699ff;
+        border-color: #3699ff;
+        color: #fff;
     }
-    .payment-failed {
-        border-left: 4px solid #dc3545;
+    
+    .payment-form .btn-lg {
+        padding: 0.75rem 1.5rem;
+        font-size: 1.1rem;
     }
-    .payment-refunded {
-        border-left: 4px solid #0dcaf0;
-    }
-    .payment-partially_refunded {
-        border-left: 4px solid #6f42c1;
-    }
-    .badge-payment-status {
-        font-size: 0.8em;
-        padding: 0.35em 0.65em;
-    }
-    .payment-amount {
-        font-weight: 600;
-    }
-    .refund-amount {
-        color: #dc3545;
+    
+    .payment-form .form-label {
+        color: #cdcdde;
         font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+    
+    .payment-form .form-text {
+        color: #7e8299 !important;
+    }
+    
+    /* Modern Dark Theme */
+    :root {
+        --primary: #3699ff;
+        --success: #1bc5bd;
+        --info: #8950fc;
+        --warning: #ffa800;
+        --danger: #f64e60;
+        --dark: #181c32;
+        --light: #e4e6ef;
+        --gray-100: #f3f6f9;
+        --gray-200: #ebedf3;
+        --gray-300: #e4e6ef;
+        --gray-400: #b5b5c3;
+        --gray-500: #a1a5b7;
+        --gray-600: #7e8299;
+        --gray-700: #5e6278;
+        --gray-800: #3f4254;
+        --gray-900: #181c32;
+    }
+    
+    body {
+        background-color: #1e1e2d;
+        color: #cdcdde;
+    }
+    
+    /* Card Styles */
+    .card {
+        background-color: #2b2b40;
+        border: none;
+        border-radius: 0.5rem;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        margin-bottom: 1.5rem;
+    }
+    
+    .card-header {
+        background-color: rgba(27, 27, 41, 0.85);
+        border-bottom: 1px solid #2b2b40;
+        padding: 1.25rem 1.5rem;
+    }
+    
+    .card-title {
+        font-weight: 600;
+        color: #fff;
+        margin-bottom: 0;
+    }
+    
+    /* Payment Method Cards */
+    .payment-method-card {
+        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #2b2b40 0%, #1e1e2d 100%);
+        border: 1px solid #2b2b40;
+        border-radius: 0.5rem;
+        overflow: hidden;
+        height: 100%;
+    }
+    
+    .payment-method-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.15);
+        border-color: var(--primary);
+    }
+    
+    .payment-method-card .card-body {
+        padding: 1.5rem;
+    }
+    
+    .payment-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        font-size: 1.5rem;
+    }
+    
+    .payment-method-card h5 {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #fff;
+    }
+    
+    .payment-stats {
+        margin-top: 1.5rem;
+    }
+    
+    .stat-label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--gray-500);
+        margin-bottom: 0.25rem;
+    }
+    
+    .stat-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #fff;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-subtext {
+        font-size: 0.75rem;
+        color: var(--gray-500);
+    }
+    
+    /* Status Badges */
+    .badge {
+        font-weight: 500;
+        padding: 0.35em 0.65em;
+        font-size: 0.75em;
+    }
+    
+    .badge-success-light {
+        background-color: rgba(27, 197, 189, 0.1);
+        color: var(--success);
+    }
+    
+    .badge-warning-light {
+        background-color: rgba(255, 168, 0, 0.1);
+        color: var(--warning);
+    }
+    
+    .badge-danger-light {
+        background-color: rgba(246, 78, 96, 0.1);
+        color: var(--danger);
+    }
+    
+    /* Responsive Adjustments */
+    @media (max-width: 768px) {
+        .payment-method-card {
+            margin-bottom: 1rem;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
+<!-- Hidden data elements for JavaScript -->
+<div id="payment-methods-data" style="display: none;">
+    {{ {
+        'mpesa': payment_summary.payment_methods.get('mpesa', {}).get('amount', 0) | default(0, true) | tojson | safe,
+        'cash': payment_summary.payment_methods.get('cash', {}).get('amount', 0) | default(0, true) | tojson | safe,
+        'card': payment_summary.payment_methods.get('card', {}).get('amount', 0) | default(0, true) | tojson | safe,
+        'insurance': payment_summary.payment_methods.get('insurance', {}).get('amount', 0) | default(0, true) | tojson | safe,
+        'bank_transfer': payment_summary.payment_methods.get('bank_transfer', {}).get('amount', 0) | default(0, true) | tojson | safe
+    } | tojson | safe }}
+</div>
+<div id="payment-status-data" style="display: none;">
+    {{ {
+        'completed': payment_summary.completed_amount | default(0, true) | tojson | safe,
+        'pending': payment_summary.pending_amount | default(0, true) | tojson | safe,
+        'failed': payment_summary.failed_amount | default(0, true) | tojson | safe,
+        'refunded': payment_summary.refunded_amount | default(0, true) | tojson | safe,
+        'partially_refunded': payment_summary.partially_refunded_amount | default(0, true) | tojson | safe
+    } | tojson | safe }}
+</div>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h2 class="mb-1"><i class="fas fa-credit-card me-2"></i> Payment Management</h2>
@@ -164,83 +333,106 @@
 
 <!-- Payment Methods Summary Section -->
 <!-- Payment Methods Summary -->
-<div class="card shadow-sm mb-4">
-    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Payment Methods</h5>
+<div class="card mb-5">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class="fas fa-credit-card me-2"></i>Payment Methods
+        </h5>
     </div>
-            <div class="card-body">
-                <div class="row">
-                    <!-- M-Pesa Summary -->
-                    <div class="col-md-4 mb-3">
-                        <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #09ab54 !important;">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center mb-3">
-                                    <div class="rounded-circle p-2 me-3" style="background-color: rgba(9, 171, 84, 0.1);">
-                                        <i data-feather="smartphone" class="text-success"></i>
-                                    </div>
-                                    <h5 class="card-title mb-0">M-Pesa</h5>
+    <div class="card-body p-4">
+        <div class="row g-4">
+            <!-- M-Pesa Card -->
+            <div class="col-xl-4 col-md-6">
+                <div class="payment-method-card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="payment-icon" style="background-color: rgba(9, 171, 84, 0.1);">
+                                <i class="fas fa-mobile-alt" style="color: #09ab54;"></i>
+                            </div>
+                            <h5 class="mb-0">M-Pesa</h5>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <div class="payment-stats">
+                                    <div class="stat-label">Transactions</div>
+                                    <div class="stat-value">{{ payment_summary.payment_methods.mpesa.count }}</div>
                                 </div>
-                                <div class="row">
-                                    <div class="col-6">
-                                        <p class="card-text text-muted mb-1">Transactions</p>
-                                        <h4>{{ payment_summary.payment_methods.mpesa.count }}</h4>
-                                    </div>
-                                    <div class="col-6">
-                                        <p class="card-text text-muted mb-1">Total Amount</p>
-                                        <h4 class="text-success">{{ payment_summary.payment_methods.mpesa.amount }} KSh</h4>
-                                        <p class="text-muted small">Completed: {{ payment_summary.payment_methods.mpesa.completed_amount }} KSh</p>
+                            </div>
+                            <div class="col-6">
+                                <div class="payment-stats">
+                                    <div class="stat-label">Total Amount</div>
+                                    <div class="stat-value text-success">{{ payment_summary.payment_methods.mpesa.amount }} KSh</div>
+                                    <div class="stat-subtext">
+                                        <i class="fas fa-check-circle text-success me-1"></i>
+                                        {{ payment_summary.payment_methods.mpesa.completed_amount }} KSh completed
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <!-- Cash Summary -->
-                    <div class="col-md-4 mb-3">
-                        <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #3498db !important;">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center mb-3">
-                                    <div class="rounded-circle p-2 me-3" style="background-color: rgba(52, 152, 219, 0.1);">
-                                        <i data-feather="dollar-sign" class="text-primary"></i>
-                                    </div>
-                                    <h5 class="card-title mb-0">Cash</h5>
-                                </div>
-                                <div class="row">
-                                    <div class="col-6">
-                                        <p class="card-text text-muted mb-1">Transactions</p>
-                                        <h4>{{ payment_summary.payment_methods.cash.count }}</h4>
-                                    </div>
-                                    <div class="col-6">
-                                        <p class="card-text text-muted mb-1">Total Amount</p>
-                                        <h4 class="text-primary">{{ payment_summary.payment_methods.cash.amount }} KSh</h4>
-                                        <p class="text-muted small">Completed: {{ payment_summary.payment_methods.cash.completed_amount }} KSh</p>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Insurance Summary -->
-                    <div class="col-md-4 mb-3">
-                        <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #9b59b6 !important;">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center mb-3">
-                                    <div class="rounded-circle p-2 me-3" style="background-color: rgba(155, 89, 182, 0.1);">
-                                        <i data-feather="shield" class="text-purple"></i>
-                                    </div>
-                                    <h5 class="card-title mb-0">Insurance</h5>
+            <!-- Cash Card -->
+            <div class="col-xl-4 col-md-6">
+                <div class="payment-method-card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="payment-icon" style="background-color: rgba(52, 152, 219, 0.1);">
+                                <i class="fas fa-money-bill-wave" style="color: #3498db;"></i>
+                            </div>
+                            <h5 class="mb-0">Cash Payments</h5>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <div class="payment-stats">
+                                    <div class="stat-label">Transactions</div>
+                                    <div class="stat-value">{{ payment_summary.payment_methods.cash.count }}</div>
                                 </div>
-                                <div class="row">
-                                    <div class="col-6">
-                                        <p class="card-text text-muted mb-1">Transactions</p>
-                                        <h4>{{ payment_summary.payment_methods.insurance.count }}</h4>
-                                    </div>
-                                    <div class="col-6">
-                                        <p class="card-text text-muted mb-1">Total Amount</p>
-                                        <h4 style="color: #9b59b6;">{{ payment_summary.payment_methods.insurance.amount }} KSh</h4>
-                                        <p class="text-muted small">Completed: {{ payment_summary.payment_methods.insurance.completed_amount }} KSh</p>
+                            </div>
+                            <div class="col-6">
+                                <div class="payment-stats">
+                                    <div class="stat-label">Total Amount</div>
+                                    <div class="stat-value text-primary">{{ payment_summary.payment_methods.cash.amount }} KSh</div>
+                                    <div class="stat-subtext">
+                                        <i class="fas fa-check-circle text-success me-1"></i>
+                                        {{ payment_summary.payment_methods.cash.completed_amount }} KSh completed
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+            <!-- Insurance Card -->
+            <div class="col-xl-4 col-md-6">
+                <div class="payment-method-card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="payment-icon" style="background-color: rgba(155, 89, 182, 0.1);">
+                                <i class="fas fa-shield-alt" style="color: #9b59b6;"></i>
+                            </div>
+                            <h5 class="mb-0">Insurance</h5>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <div class="payment-stats">
+                                    <div class="stat-label">Transactions</div>
+                                    <div class="stat-value">{{ payment_summary.payment_methods.insurance.count }}</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="payment-stats">
+                                    <div class="stat-label">Total Amount</div>
+                                    <div class="stat-value" style="color: #9b59b6;">{{ payment_summary.payment_methods.insurance.amount }} KSh</div>
+                                    <div class="stat-subtext">
+                                        <i class="fas fa-check-circle text-success me-1"></i>
+                                        {{ payment_summary.payment_methods.insurance.completed_amount }} KSh completed
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                             </div>
                         </div>
                     </div>
@@ -532,47 +724,158 @@
     </div>
 
     <!-- New Payment Form -->
-    <div class="col-md-4">
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-transparent">
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center">
+                <i class="fas fa-plus-circle me-2 text-primary"></i>
                 <h5 class="mb-0">Record New Payment</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body p-4">
                 {% if pending_appointments %}
-                <form action="{{ url_for('create_payment') }}" method="post">
-                    <div class="mb-3">
-                        <label for="appointment_id" class="form-label">Appointment</label>
-                        <select class="form-select" id="appointment_id" name="appointment_id" required>
-                            <option value="">Select appointment</option>
-                            {% for appointment in pending_appointments %}
-                            <option value="{{ appointment.id }}" data-price="{{ appointment.price }}">
-                                {{ appointment.patient.name }} - {{ appointment.date }} at {{ appointment.time }}
-                            </option>
-                            {% endfor %}
+                <form action="{{ url_for('create_payment') }}" method="post" class="payment-form">
+                    <div class="mb-4">
+                        <label for="appointment_id" class="form-label d-flex align-items-center">
+                            <i class="far fa-calendar-alt me-2 text-muted"></i>Appointment
+                        </label>
+                        <div class="input-group input-group-merge">
+                            <span class="input-group-text bg-dark border-dark">
+                                <i class="fas fa-search text-muted"></i>
+                            </span>
+                            <select class="form-select form-select-lg" id="appointment_id" name="appointment_id" required>
+                                <option value="" disabled selected>Select appointment</option>
+                                {% for appointment in pending_appointments %}
+                                <option value="{{ appointment.id }}" 
+                                        data-price="{{ appointment.price }}"
+                                        data-patient-id="{{ appointment.patient.id }}"
+                                        data-patient-name="{{ appointment.patient.name }}"
+                                        data-preferred-method="{{ appointment.patient.preferred_payment_method or 'mpesa' }}"
+                                        data-amount-due="{{ appointment.amount_due }}"
+                                        data-amount-paid="{{ appointment.amount_paid }}">
+                                    {{ appointment.patient.name }} - {{ appointment.date }} at {{ appointment.time }} (Due: {{ appointment.amount_due }} KSh)
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Payment Summary Card -->
+                    <div class="card bg-dark border-0 mb-4 d-none" id="paymentSummary">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-muted">Total Amount Due:</span>
+                                <span class="fw-bold" id="totalAmountDue">0.00 KSh</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-muted">Amount Paid:</span>
+                                <span class="text-success" id="amountPaid">0.00 KSh</span>
+                            </div>
+                            <div class="progress mb-2" style="height: 6px;">
+                                <div id="paymentProgress" class="progress-bar bg-success" role="progressbar" style="width: 0%" 
+                                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="text-muted">Balance:</span>
+                                <span class="fw-bold" id="balanceAmount">0.00 KSh</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="amount" class="form-label d-flex align-items-center">
+                            <i class="fas fa-money-bill-wave me-2 text-muted"></i>Amount (KSh)
+                        </label>
+                        <div class="input-group input-group-merge">
+                            <span class="input-group-text bg-dark border-dark">
+                                <i class="fas fa-coins text-muted"></i>
+                            </span>
+                            <input type="number" class="form-control form-control-lg" id="amount" name="amount" 
+                                   min="0" step="0.01" placeholder="0.00" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label for="payment_method" class="form-label d-flex align-items-center mb-0">
+                                <i class="fas fa-credit-card me-2 text-muted"></i>Payment Method
+                            </label>
+                            <small class="text-muted" id="preferredMethodBadge">
+                                <i class="fas fa-star text-warning"></i> Patient's preferred method
+                            </small>
+                        </div>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="payment_method" id="mpesa" value="mpesa" autocomplete="off">
+                            <label class="btn btn-outline-primary payment-method-btn" for="mpesa" data-method="mpesa">
+                                <i class="fas fa-mobile-alt me-1"></i> M-Pesa
+                            </label>
+                            
+                            <input type="radio" class="btn-check" name="payment_method" id="cash" value="cash" autocomplete="off">
+                            <label class="btn btn-outline-primary payment-method-btn" for="cash" data-method="cash">
+                                <i class="fas fa-money-bill-wave me-1"></i> Cash
+                            </label>
+                            
+                            <input type="radio" class="btn-check" name="payment_method" id="insurance" value="insurance" autocomplete="off">
+                            <label class="btn btn-outline-primary payment-method-btn" for="insurance" data-method="insurance">
+                                <i class="fas fa-shield-alt me-1"></i> Insurance
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Dynamic Fields Based on Payment Method -->
+                    <div class="mb-4" id="mpesaFields">
+                        <label for="phone_number" class="form-label d-flex align-items-center">
+                            <i class="fas fa-phone-alt me-2 text-muted"></i>M-Pesa Phone Number
+                        </label>
+                        <div class="input-group input-group-merge">
+                            <span class="input-group-text bg-dark border-dark">
+                                <i class="fas fa-mobile-alt text-muted"></i>
+                            </span>
+                            <input type="tel" class="form-control form-control-lg" id="phone_number" 
+                                   name="phone_number" placeholder="+254 7XX XXX XXX">
+                        </div>
+                        <div class="form-text text-muted mt-1">We'll send an M-Pesa payment request to this number</div>
+                    </div>
+                    
+                    <div class="mb-4 d-none" id="insuranceFields">
+                        <label for="insurance_provider" class="form-label d-flex align-items-center">
+                            <i class="fas fa-shield-alt me-2 text-muted"></i>Insurance Provider
+                        </label>
+                        <select class="form-select form-select-lg" id="insurance_provider" name="insurance_provider">
+                            <option value="" selected disabled>Select insurance provider</option>
+                            <option value="nhif">NHIF</option>
+                            <option value="aaron">AAR Insurance</option>
+                            <option value="jubilee">Jubilee Insurance</option>
+                            <option value="liberty">Liberty Insurance</option>
+                            <option value="other">Other</option>
                         </select>
+                        <div class="form-text text-muted mt-1">Select the patient's insurance provider</div>
                     </div>
-                    <div class="mb-3">
-                        <label for="amount" class="form-label">Amount (KSh)</label>
-                        <input type="number" class="form-control" id="amount" name="amount" min="0" step="0.01" required>
+                    
+                    <div class="mb-4 d-none" id="cashFields">
+                        <div class="alert alert-info py-2">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Please collect <span id="cashAmountDue" class="fw-bold">0.00 KSh</span> in cash from the patient
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="cashReceived" name="cash_received" required>
+                            <label class="form-check-label" for="cashReceived">
+                                I confirm receiving the cash payment
+                            </label>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="phone_number" class="form-label">Phone Number</label>
-                        <input type="text" class="form-control" id="phone_number" name="phone_number" placeholder="+254..." required>
-                        <div class="form-text">Patient's phone number for M-Pesa payment</div>
+                    
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitPaymentBtn">
+                            <i class="fas fa-save me-2"></i> Record Payment
+                        </button>
                     </div>
-                    <div class="mb-3">
-                        <label for="payment_method" class="form-label">Payment Method</label>
-                        <select class="form-select" id="payment_method" name="payment_method" required>
-                            <option value="mpesa">M-Pesa</option>
-                            <option value="cash">Cash</option>
-                            <option value="insurance">Insurance</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Record Payment</button>
                 </form>
                 {% else %}
-                <div class="alert alert-info mb-0">
-                    <p class="mb-0">No pending appointments requiring payment.</p>
+                <div class="text-center py-4">
+                    <div class="mb-3">
+                        <i class="fas fa-check-circle text-success" style="font-size: 3rem;"></i>
+                    </div>
+                    <h5 class="mb-2">All Caught Up!</h5>
+                    <p class="text-muted mb-0">No pending appointments requiring payment.</p>
                 </div>
                 {% endif %}
             </div>
@@ -582,77 +885,160 @@
     
     <!-- Create Payment Modal -->
     <div class="modal fade" id="createPaymentModal" tabindex="-1" aria-labelledby="createPaymentModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <form id="createPaymentForm" method="POST" action="{{ url_for('payments') }}">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <form id="createPaymentForm" method="POST" action="{{ url_for('payments') }}" class="needs-validation" novalidate>
                     {{ form.hidden_tag() }}
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="createPaymentModalLabel">Record New Payment</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <div class="modal-header bg-primary text-white">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-credit-card me-2"></i>
+                            <h5 class="modal-title mb-0" id="createPaymentModalLabel">Record New Payment</h5>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            {{ form.appointment_id.label(class="form-label") }}
-                            {{ form.appointment_id(class="form-select" + (' is-invalid' if form.appointment_id.errors else '')) }}
+                    <div class="modal-body p-4">
+                        <div class="alert alert-info py-2 small mb-4" role="alert">
+                            <i class="fas fa-info-circle me-1"></i> Fill in the payment details below
+                        </div>
+                        
+                        <!-- Appointment Selection -->
+                        <div class="mb-4">
+                            <label for="{{ form.appointment_id.id }}" class="form-label fw-semibold">
+                                <i class="far fa-calendar-alt me-1 text-primary"></i> Select Appointment
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light">
+                                    <i class="fas fa-search text-muted"></i>
+                                </span>
+                                <select name="{{ form.appointment_id.name }}" id="{{ form.appointment_id.id }}" class="form-select form-select-lg{{ ' is-invalid' if form.appointment_id.errors }}" required>
+                                    <option value="" disabled selected>Choose an appointment...</option>
+                                    {% for value, label in form.appointment_id.choices %}
+                                        {% set option = form.appointment_id.choices.get_field(value) %}
+                                        <option value="{{ value }}" 
+                                                {% if option.data_attrs %}
+                                                    data-amount="{{ option.data_attrs.amount }}"
+                                                    data-patient="{{ option.data_attrs.patient }}"
+                                                {% endif %}
+                                                {% if form.appointment_id.data == value %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                             {% if form.appointment_id.errors %}
-                                <div class="invalid-feedback">
-                                    {{ form.appointment_id.errors[0] }}
+                                <div class="invalid-feedback d-block">
+                                    <i class="fas fa-exclamation-circle me-1"></i> {{ form.appointment_id.errors[0] }}
                                 </div>
                             {% endif %}
+                            <div class="form-text small text-muted">Search and select the appointment for this payment</div>
                         </div>
                         
-                        <div class="mb-3">
-                            <label for="patient_name" class="form-label">Patient</label>
-                            <input type="text" class="form-control" id="patient_name" readonly>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                {{ form.amount.label(class="form-label") }}
-                                <div class="input-group">
-                                    <span class="input-group-text">{{ config.get('CURRENCY', 'KES') }}</span>
-                                    {{ form.amount(class="form-control" + (' is-invalid' if form.amount.errors else ''), step="0.01", min="0") }}
-                                </div>
-                                {% if form.amount.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.amount.errors[0] }}
-                                    </div>
-                                {% endif %}
+                        <!-- Patient Info -->
+                        <div class="mb-4 p-3 bg-light rounded-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-user-circle me-2 text-primary"></i>
+                                <h6 class="mb-0 fw-semibold">Patient Information</h6>
                             </div>
-                            <div class="col-md-6 mb-3">
-                                {{ form.payment_method.label(class="form-label") }}
-                                {{ form.payment_method(class="form-select" + (' is-invalid' if form.payment_method.errors else '')) }}
-                                {% if form.payment_method.errors %}
-                                    <div class="invalid-feedback">
-                                        {{ form.payment_method.errors[0] }}
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label class="form-label small text-muted mb-1">Patient Name</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-white"><i class="fas fa-user text-muted"></i></span>
+                                        <input type="text" class="form-control form-control-sm bg-white" id="patient_name" readonly>
                                     </div>
-                                {% endif %}
+                                </div>
                             </div>
                         </div>
                         
-                        <div class="mb-3" id="mpesaReferenceField" style="display: none;">
-                            {{ form.mpesa_reference.label(class="form-label") }}
-                            {{ form.mpesa_reference(class="form-control" + (' is-invalid' if form.mpesa_reference.errors else '')) }}
-                            {% if form.mpesa_reference.errors %}
-                                <div class="invalid-feedback">
-                                    {{ form.mpesa_reference.errors[0] }}
+                        <!-- Payment Details -->
+                        <div class="mb-4">
+                            <h6 class="mb-3 fw-semibold border-bottom pb-2">
+                                <i class="fas fa-money-bill-wave me-2 text-primary"></i>Payment Details
+                            </h6>
+                            
+                            <div class="row g-3">
+                                <!-- Amount -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.amount.id }}" class="form-label fw-medium">
+                                        <i class="fas fa-coins me-1 text-primary"></i> Amount
+                                    </label>
+                                    <div class="input-group input-group-lg">
+                                        <span class="input-group-text bg-light fw-bold">{{ config.get('CURRENCY', 'KES') }}</span>
+                                        {% set amount_class = 'form-control form-control-lg' + (' is-invalid' if form.amount.errors else '') %}
+                                        {% if form.amount.errors %}
+                                            {{ form.amount(class=amount_class, step="0.01", min="0", placeholder="0.00", required="required") }}
+                                        {% else %}
+                                            {{ form.amount(class=amount_class, step="0.01", min="0", placeholder="0.00", required="required") }}
+                                        {% endif %}
+                                    </div>
+                                    {% if form.amount.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            <i class="fas fa-exclamation-circle me-1"></i> {{ form.amount.errors[0] }}
+                                        </div>
+                                    {% endif %}
                                 </div>
-                            {% endif %}
+                                
+                                <!-- Payment Method -->
+                                <div class="col-md-6">
+                                    <label for="{{ form.payment_method.id }}" class="form-label fw-medium">
+                                        <i class="fas fa-credit-card me-1 text-primary"></i> Payment Method
+                                    </label>
+                                    <div class="input-group input-group-lg">
+                                        <span class="input-group-text bg-light"><i class="fas fa-wallet text-muted"></i></span>
+                                        {% set payment_method_class = 'form-select form-select-lg' + (' is-invalid' if form.payment_method.errors else '') %}
+                                        {{ form.payment_method(class=payment_method_class, onchange="toggleMpesaField(this.value)") }}
+                                    </div>
+                                    {% if form.payment_method.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            <i class="fas fa-exclamation-circle me-1"></i> {{ form.payment_method.errors[0] }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- M-Pesa Reference (Conditional) -->
+                                <div class="col-12" id="mpesaReferenceField" style="display: none;">
+                                    <label for="{{ form.mpesa_reference.id }}" class="form-label fw-medium">
+                                        <i class="fas fa-mobile-alt me-1 text-primary"></i> M-Pesa Reference
+                                    </label>
+                                    <div class="input-group input-group-lg">
+                                        <span class="input-group-text bg-light"><i class="fas fa-hashtag text-muted"></i></span>
+                                        {% set mpesa_ref_class = 'form-control form-control-lg' + (' is-invalid' if form.mpesa_reference.errors else '') %}
+                                        {{ form.mpesa_reference(class=mpesa_ref_class, placeholder="e.g. MPS123456") }}
+                                    </div>
+                                    {% if form.mpesa_reference.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            <i class="fas fa-exclamation-circle me-1"></i> {{ form.mpesa_reference.errors[0] }}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text small text-muted">Enter the M-Pesa transaction code</div>
+                                </div>
+                            </div>
                         </div>
                         
+                        <!-- Additional Notes -->
                         <div class="mb-3">
-                            {{ form.notes.label(class="form-label") }}
-                            {{ form.notes(class="form-control" + (' is-invalid' if form.notes.errors else ''), rows="2") }}
+                            <label for="{{ form.notes.id }}" class="form-label fw-medium">
+                                <i class="far fa-sticky-note me-1 text-primary"></i> Notes (Optional)
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="far fa-edit text-muted"></i></span>
+                                {% set notes_class = 'form-control' + (' is-invalid' if form.notes.errors else '') %}
+                                {{ form.notes(class=notes_class, rows="2", placeholder="Add any additional notes about this payment...") }}
+                            </div>
                             {% if form.notes.errors %}
-                                <div class="invalid-feedback">
-                                    {{ form.notes.errors[0] }}
+                                <div class="invalid-feedback d-block">
+                                    <i class="fas fa-exclamation-circle me-1"></i> {{ form.notes.errors[0] }}
                                 </div>
                             {% endif %}
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        {{ form.submit(class="btn btn-primary") }}
+                    <div class="modal-footer bg-light border-top">
+                        <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="fas fa-save me-2"></i> Record Payment
+                        </button>
                     </div>
             </form>
         </div>
@@ -661,6 +1047,9 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Add Select2 CSS and JS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -678,47 +1067,84 @@
             });
         }
         
+        // Function to toggle M-Pesa reference field with animation
         function toggleMpesaField(method) {
-            if (method === 'mpesa') {
-                mpesaField.style.display = 'block';
+            const mpesaField = $('#mpesaReferenceField');
+            if (method === 'M-Pesa') {
+                mpesaField.slideDown(200);
             } else {
-                mpesaField.style.display = 'none';
+                mpesaField.slideUp(200);
             }
         }
         
-        // Auto-populate patient name and amount when appointment is selected
-        const appointmentSelect = document.getElementById('{{ form.appointment_id.id }}');
-        const patientNameField = document.getElementById('patient_name');
-        const amountField = document.getElementById('{{ form.amount.id }}');
-        
-        if (appointmentSelect && patientNameField && amountField) {
-            // Handle initial load if an appointment is pre-selected
-            if (appointmentSelect.value) {
-                updateAppointmentDetails(appointmentSelect);
+        // Initialize form controls after DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            var $ = window.jQuery; // Ensure jQuery is available
+            if (!$) {
+                console.error('jQuery is not loaded');
+                return;
             }
             
-            // Handle changes
-            appointmentSelect.addEventListener('change', function() {
-                updateAppointmentDetails(this);
-            });
-        }
-        
-        function updateAppointmentDetails(selectElement) {
-            const selectedOption = selectElement.options[selectElement.selectedIndex];
-            if (selectedOption && selectedOption.dataset.patient) {
-                patientNameField.value = selectedOption.dataset.patient;
-                if (selectedOption.dataset.amount) {
-                    amountField.value = parseFloat(selectedOption.dataset.amount).toFixed(2);
+            var $appointmentSelect = $('#{{ form.appointment_id.id }}');
+            var $amountInput = $('#{{ form.amount.id }}');
+            var $patientName = $('#patient_name');
+            
+            // Format currency input
+            $amountInput.on('input', function() {
+                let value = $(this).val().replace(/[^\d.]/g, '');
+                const parts = value.split('.');
+                if (parts.length > 1) {
+                    parts[1] = parts[1].slice(0, 2);
+                    value = parts[0] + (parts[1] ? '.' + parts[1] : '');
                 }
-            } else {
-                patientNameField.value = '';
+                $(this).val(value);
+            });
+            
+            // Function to update form fields based on selected appointment
+            function updateAppointmentDetails($selectElement) {
+                const selectedOption = $selectElement.find('option:selected');
+                const patientName = selectedOption.data('patient') || '';
+                const amount = selectedOption.data('amount') || '';
+                
+                $patientName.val(patientName);
+                $amountInput.val(amount).trigger('input');
+                
+                // Add visual feedback
+                if (patientName) {
+                    $patientName.addClass('fw-bold text-dark');
+                } else {
+                    $patientName.removeClass('fw-bold text-dark');
+                }
+                
+                // Trigger change event to update any dependent fields
+                $amountInput.trigger('change');
             }
-        }
-        
-        // Initialize the appointment details if an option is already selected
-        if (appointmentSelect && appointmentSelect.value) {
-            updateAppointmentDetails(appointmentSelect);
-        }
+            
+            // Initialize Select2 if available
+            if ($.fn.select2) {
+                $appointmentSelect.select2({
+                    placeholder: 'Select an appointment',
+                    width: '100%',
+                    allowClear: true
+                });
+                
+                // Handle appointment selection change
+                $appointmentSelect.on('change', function() {
+                    updateAppointmentDetails($(this));
+                });
+            } else {
+                console.warn('Select2 is not loaded');
+                // Fallback to regular select behavior
+                $appointmentSelect.on('change', function() {
+                    updateAppointmentDetails($(this));
+                });
+            }
+            
+            // Initialize with any pre-selected value
+            if ($appointmentSelect.val()) {
+                updateAppointmentDetails($appointmentSelect);
+            }
+        });
     });
 </script>
 <script>
@@ -1029,10 +1455,10 @@
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
             alertDiv.role = 'alert';
-            alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            `;
+            alertDiv.innerHTML = [
+                message,
+                '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>'
+            ].join('');
             
             // Add to the alerts container if it exists, otherwise to the top of the content
             const alertsContainer = document.getElementById('alerts-container') || document.querySelector('.content');
@@ -1051,85 +1477,98 @@
             const methodsChart = document.getElementById('paymentMethodsChart');
             if (methodsChart) {
                 const ctx = methodsChart.getContext('2d');
-                new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['M-Pesa', 'Cash', 'Card', 'Insurance', 'Bank Transfer'],
-                        datasets: [{
-                            data: [
-                                {{ payment_summary.payment_methods.get('mpesa', {}).get('amount', 0) }}, 
-                                {{ payment_summary.payment_methods.get('cash', {}).get('amount', 0) }},
-                                {{ payment_summary.payment_methods.get('card', {}).get('amount', 0) }},
-                                {{ payment_summary.payment_methods.get('insurance', {}).get('amount', 0) }},
-                                {{ payment_summary.payment_methods.get('bank_transfer', {}).get('amount', 0) }}
-                            ],
-                            backgroundColor: [
-                                '#09ab54',  // M-Pesa green
-                                '#3498db',  // Cash blue
-                                '#6f42c1',  // Card purple
-                                '#ffc107',  // Insurance yellow
-                                '#6c757d'   // Bank transfer gray
-                            ],
-                            borderWidth: 0
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: {
-                                    padding: 15,
-                                    boxWidth: 12
-                                }
-                            }
+                // Initialize methods data from template using a data attribute
+                const methodsData = JSON.parse(document.getElementById('payment-methods-data').textContent);
+                const methodsValues = [
+                    methodsData.mpesa || 0,
+                    methodsData.cash || 0,
+                    methodsData.card || 0,
+                    methodsData.insurance || 0,
+                    methodsData.bank_transfer || 0
+                ].map(Number); // Ensure all values are numbers
+                
+                // Only create chart if there's data to display
+                if (methodsData.some(val => val > 0)) {
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['M-Pesa', 'Cash', 'Card', 'Insurance', 'Bank Transfer'],
+                            datasets: [{
+                                data: methodsValues,
+                                backgroundColor: [
+                                    '#09ab54',  // M-Pesa green
+                                    '#3498db',  // Cash blue
+                                    '#6f42c1',  // Card purple
+                                    '#ffc107',  // Insurance yellow
+                                    '#6c757d'   // Bank transfer gray
+                                ],
+                                borderWidth: 0
+                            }]
                         },
-                        cutout: '70%',
-                        radius: '90%'
-                    }
-                });
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        padding: 15,
+                                        boxWidth: 12
+                                    }
+                                }
+                            },
+                            cutout: '70%',
+                            radius: '90%'
+                        }
+                    });
+                }
             }
             
             // Payment status chart
             const statusChart = document.getElementById('paymentStatusChart');
             if (statusChart) {
                 const ctx = statusChart.getContext('2d');
-                new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Completed', 'Pending', 'Failed', 'Refunded', 'Partially Refunded'],
-                        datasets: [{
-                            data: [
-                                {{ payment_summary.completed_amount or 0 }}, 
-                                {{ payment_summary.pending_amount or 0 }}, 
-                                {{ payment_summary.failed_amount or 0 }},
-                                {{ payment_summary.refunded_amount or 0 }},
-                                {{ payment_summary.partially_refunded_amount or 0 }}
-                            ],
-                            backgroundColor: [
-                                '#198754',  // Completed green
-                                '#ffc107',  // Pending yellow
-                                '#dc3545',  // Failed red
-                                '#0dcaf0',  // Refunded cyan
-                                '#6f42c1'   // Partially refunded purple
-                            ],
-                            borderWidth: 0
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: {
-                                    padding: 15,
-                                    boxWidth: 12
-                                }
-                            }
+                // Initialize status data from template using a data attribute
+                const statusData = JSON.parse(document.getElementById('payment-status-data').textContent);
+                const statusValues = [
+                    statusData.completed || 0,
+                    statusData.pending || 0,
+                    statusData.failed || 0,
+                    statusData.refunded || 0,
+                    statusData.partially_refunded || 0
+                ].map(Number); // Ensure all values are numbers
+                
+                // Only create chart if there's data to display
+                if (statusData.some(val => val > 0)) {
+                    new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Completed', 'Pending', 'Failed', 'Refunded', 'Partially Refunded'],
+                            datasets: [{
+                                data: statusValues,
+                                backgroundColor: [
+                                    '#198754',  // Completed green
+                                    '#ffc107',  // Pending yellow
+                                    '#dc3545',  // Failed red
+                                    '#0dcaf0',  // Refunded cyan
+                                    '#6f42c1'   // Partially refunded purple
+                                ],
+                                borderWidth: 0
+                            }]
                         },
-                        cutout: '70%',
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        padding: 15,
+                                        boxWidth: 12
+                                    }
+                                }
+                            },
+                            cutout: '70%',
                         radius: '90%'
                     }
                 });

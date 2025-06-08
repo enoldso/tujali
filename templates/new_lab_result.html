@@ -51,7 +51,7 @@
                         </div>
                         
                         <div class="form-row">
-                            <div class="form-group col-md-6">
+                            <div class="form-group col-md-4">
                                 {{ form.test_type.label }}
                                 {{ form.test_type(class="form-control" + (" is-invalid" if form.test_type.errors else "")) }}
                                 {% if form.test_type.errors %}
@@ -62,7 +62,7 @@
                                     </div>
                                 {% endif %}
                             </div>
-                            <div class="form-group col-md-6">
+                            <div class="form-group col-md-4">
                                 {{ form.test_date.label }}
                                 {{ form.test_date(class="form-control" + (" is-invalid" if form.test_date.errors else ""),
                                                 value=now.strftime('%Y-%m-%dT%H:%M')) }}
@@ -74,12 +74,58 @@
                                     </div>
                                 {% endif %}
                             </div>
+                            <div class="form-group col-md-4">
+                                {{ form.fee.label }}
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text">KSh</span>
+                                    </div>
+                                    {{ form.fee(class="form-control" + (" is-invalid" if form.fee.errors else ""), 
+                                             placeholder="0.00") }}
+                                </div>
+                                {% if form.fee.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.fee.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
                         </div>
                         
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <div class="custom-control custom-switch mt-4">
+                                    {{ form.is_billed(class="custom-control-input") }}
+                                    {{ form.is_billed.label(class="custom-control-label") }}
+                                    <small class="form-text text-muted">
+                                        Uncheck if the test is free or covered by insurance
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="form-group col-md-6">
+                                {{ form.urgency.label(class="d-block") }}
+                                <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+                                    <label class="btn btn-outline-secondary {% if not form.urgency.data or form.urgency.data == 'routine' %}active{% endif %}">
+                                        <input type="radio" name="urgency" value="routine" autocomplete="off" 
+                                               {% if not form.urgency.data or form.urgency.data == 'routine' %}checked{% endif %}> Routine
+                                    </label>
+                                    <label class="btn btn-outline-warning {% if form.urgency.data == 'urgent' %}active{% endif %}">
+                                        <input type="radio" name="urgency" value="urgent" autocomplete="off"
+                                               {% if form.urgency.data == 'urgent' %}checked{% endif %}> Urgent
+                                    </label>
+                                    <label class="btn btn-outline-danger {% if form.urgency.data == 'stat' %}active{% endif %}">
+                                        <input type="radio" name="urgency" value="stat" autocomplete="off"
+                                               {% if form.urgency.data == 'stat' %}checked{% endif %}> STAT
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="form-group">
                             {{ form.notes.label }}
                             {{ form.notes(class="form-control" + (" is-invalid" if form.notes.errors else ""), 
-                                         rows=3, placeholder="Any specific instructions or clinical notes...") }}
+                                         rows=2, placeholder="Clinical notes and instructions...") }}
                             {% if form.notes.errors %}
                                 <div class="invalid-feedback">
                                     {% for error in form.notes.errors %}
@@ -88,11 +134,26 @@
                                 </div>
                             {% endif %}
                         </div>
+
+                        <div class="form-group">
+                            {{ form.billing_notes.label }}
+                            {{ form.billing_notes(class="form-control" + (" is-invalid" if form.billing_notes.errors else ""), 
+                                               rows=2, placeholder="Billing notes, insurance info, or special instructions...") }}
+                            {% if form.billing_notes.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.billing_notes.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
                         
                         <div class="form-group">
                             <div class="custom-control custom-checkbox">
-                                {{ form.urgent(class="custom-control-input") }}
-                                {{ form.urgent.label(class="custom-control-label") }}
+                                {% for subfield in form.urgency %}
+                                    <div class="form-check form-check-inline">
+                                        {{ subfield(class="form-check-input") }}
+                                        {{ subfield.label(class="form-check-label") }}
                             </div>
                         </div>
                         

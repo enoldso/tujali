@@ -28,7 +28,14 @@ class ProductionConfig(Config):
 
 # Dictionary to map config names to classes
 config = {
-    'development': DevelopmentConfig,
-    'production': ProductionConfig,
-    'default': DevelopmentConfig
+    'development': DevelopmentConfig(),
+    'production': ProductionConfig(),
+    'default': DevelopmentConfig()
 }
+
+# Load configuration based on FLASK_ENV
+env = os.environ.get('FLASK_ENV', 'development').lower()
+if env not in config:
+    env = 'default'
+    
+current_config = config[env]

@@ -250,8 +250,18 @@ class LabResultForm(FlaskForm):
     test_date = DateTimeField('Test Date', format='%Y-%m-%dT%H:%M', 
                             default=lambda: datetime.now(),
                             validators=[DataRequired()])
-    notes = TextAreaField('Notes', validators=[Optional()])
-    urgent = BooleanField('Mark as Urgent')
+    fee = DecimalField('Test Fee (KSh)', validators=[Optional(), NumberRange(min=0)], places=2)
+    is_billed = BooleanField('Bill to Patient', default=True)
+    billing_notes = TextAreaField('Billing Notes', validators=[Optional()])
+    notes = TextAreaField('Clinical Notes', validators=[Optional()])
+    urgency = SelectField('Urgency Level', 
+                        choices=[
+                            ('routine', 'Routine'),
+                            ('urgent', 'Urgent'),
+                            ('stat', 'STAT')
+                        ], 
+                        default='routine',
+                        validators=[DataRequired()])
     submit = SubmitField('Save Test Order')
 
     def __init__(self, *args, **kwargs):

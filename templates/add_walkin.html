@@ -203,75 +203,221 @@
                                             </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary me-md-2">
-                                        <i class="bi bi-x-lg"></i> Cancel
-                                    </a>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-person-plus"></i> Add Patient
-                                    </button>
-                                </div>
-                            </form>
+                                    <!-- Payment Section -->
+                                    <div class="card mt-4 border-primary">
+                                        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                            <h5 class="mb-0">Payment Information</h5>
+                                            <div class="form-check form-switch mb-0">
+                                                <input class="form-check-input" type="checkbox" id="recordPayment" name="record_payment" value="1">
+                                                <label class="form-check-label" for="recordPayment">Record Payment</label>
+                                            </div>
+                                        </div>
+                                        <div class="card-body" id="paymentFields" style="display: none;">
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <div class="form-floating mb-3">
+                                                        <input type="number" class="form-control" id="payment_amount" name="payment_amount" placeholder="0.00" step="0.01" min="0">
+                                                        <label for="payment_amount">Amount (KSh)</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-floating mb-3">
+                                                        <select class="form-select" id="payment_method" name="payment_method">
+                                                            <option value="">Select payment method</option>
+                                                            <option value="cash">Cash</option>
+                                                            <option value="mpesa">M-Pesa</option>
+                                                            <option value="insurance">Insurance</option>
+                                                            <option value="card">Credit/Debit Card</option>
+                                                            <option value="bank_transfer">Bank Transfer</option>
+                                                        </select>
+                                                        <label for="payment_method">Payment Method</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row mb-3" id="mpesaFields" style="display: none;">
+                                                <div class="col-12">
+                                                    <div class="form-floating mb-3">
+                                                        <input type="tel" class="form-control" id="mpesa_phone" name="mpesa_phone" placeholder="+254 7XX XXX XXX">
+                                                        <label for="mpesa_phone">M-Pesa Phone Number</label>
+                                                        <div class="form-text">Enter phone number in format: 2547XXXXXXXX</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="payment_notes" class="form-label">Payment Notes</label>
+                                                <textarea class="form-control" id="payment_notes" name="payment_notes" rows="2"></textarea>
+                                                <div class="form-text">Add any notes about this payment (e.g., partial payment, insurance details)</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary me-md-2">
+                                            <i class="bi bi-x-lg"></i> Cancel
+                                        </a>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-check-lg"></i> Save Patient
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </main>
+            </main>
+        </div>
     </div>
-</div>
-{% endblock %}
+    {% endblock %}
 
-{% block scripts %}
-{{ super() }}
-<script>
-    // Initialize form validation and appointment type toggle
-    document.addEventListener('DOMContentLoaded', function() {
-        const scheduleType = document.getElementById('schedule-type');
-        const appointmentFields = document.getElementById('appointment-fields');
-        const appointmentDate = document.getElementById('appointment_date');
-        const appointmentTime = document.getElementById('appointment_time');
-        
-        // Set minimum date to today
-        const today = new Date().toISOString().split('T')[0];
-        if (appointmentDate) {
-            appointmentDate.min = today;
-        }
-        
-        // Toggle appointment fields based on schedule type
-        function toggleAppointmentFields() {
-            if (scheduleType && scheduleType.value === 'schedule') {
-                appointmentFields.style.display = 'flex';
-                // Make fields required when visible
-                if (appointmentDate) appointmentDate.required = true;
-                if (appointmentTime) appointmentTime.required = true;
-            } else {
-                if (appointmentFields) appointmentFields.style.display = 'none';
-                // Remove required when hidden
-                if (appointmentDate) appointmentDate.required = false;
-                if (appointmentTime) appointmentTime.required = false;
+    {% block scripts %}
+    {{ super() }}
+    <script>
+        // Initialize form validation and appointment type toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            // Appointment scheduling elements
+            const scheduleType = document.getElementById('schedule-type');
+            const appointmentFields = document.getElementById('appointment-fields');
+            const appointmentDate = document.getElementById('appointment_date');
+            const appointmentTime = document.getElementById('appointment_time');
+            
+            // Payment elements
+            const recordPaymentCheckbox = document.getElementById('recordPayment');
+            const paymentFields = document.getElementById('paymentFields');
+            const paymentMethod = document.getElementById('payment_method');
+            const mpesaFields = document.getElementById('mpesaFields');
+            const patientPhone = document.getElementById('phone');
+            
+            // Set minimum date to today
+            const today = new Date().toISOString().split('T')[0];
+            if (appointmentDate) {
+                appointmentDate.min = today;
             }
-        }
         
-        // Initial toggle
-        if (scheduleType) {
-            toggleAppointmentFields();
-            // Add change event listener
-            scheduleType.addEventListener('change', toggleAppointmentFields);
-        }
-        
-        // Form validation
-        const form = document.querySelector('form');
-        if (form) {
-            form.addEventListener('submit', function(event) {
-                if (!form.checkValidity()) {
-                    event.preventDefault();
-                    event.stopPropagation();
+            // Toggle appointment fields based on schedule type
+            function toggleAppointmentFields() {
+                if (scheduleType && scheduleType.value === 'schedule') {
+                    appointmentFields.style.display = 'flex';
+                    // Make fields required when visible
+                    if (appointmentDate) appointmentDate.required = true;
+                    if (appointmentTime) appointmentTime.required = true;
+                } else {
+                    appointmentFields.style.display = 'none';
+                    // Remove required when hidden
+                    if (appointmentDate) appointmentDate.required = false;
+                    if (appointmentTime) appointmentTime.required = false;
                 }
-                form.classList.add('was-validated');
-            }, false);
-        }
-    });
-</script>
-{% endblock %}
+            }
+            
+            // Toggle payment fields
+            function togglePaymentFields() {
+                if (recordPaymentCheckbox.checked) {
+                    paymentFields.style.display = 'block';
+                    // Make payment fields required
+                    document.getElementById('payment_amount').required = true;
+                    document.getElementById('payment_method').required = true;
+                } else {
+                    paymentFields.style.display = 'none';
+                    // Remove required when hidden
+                    document.getElementById('payment_amount').required = false;
+                    document.getElementById('payment_method').required = false;
+                    mpesaFields.style.display = 'none';
+                    document.getElementById('mpesa_phone').required = false;
+                }
+            }
+            
+            // Toggle M-Pesa fields based on payment method
+            function toggleMpesaFields() {
+                if (paymentMethod.value === 'mpesa') {
+                    mpesaFields.style.display = 'block';
+                    document.getElementById('mpesa_phone').required = true;
+                    
+                    // Auto-fill M-Pesa phone from patient's phone if available
+                    if (patientPhone && patientPhone.value) {
+                        const phone = patientPhone.value.trim();
+                        if (phone.startsWith('0')) {
+                            document.getElementById('mpesa_phone').value = '254' + phone.substring(1);
+                        } else if (phone.startsWith('+254')) {
+                            document.getElementById('mpesa_phone').value = phone.substring(1);
+                        } else if (phone.startsWith('254')) {
+                            document.getElementById('mpesa_phone').value = phone;
+                        }
+                    }
+                } else {
+                    mpesaFields.style.display = 'none';
+                    document.getElementById('mpesa_phone').required = false;
+                }
+            }
+        
+            // Initialize event listeners
+            if (recordPaymentCheckbox) {
+                recordPaymentCheckbox.addEventListener('change', togglePaymentFields);
+                
+                // Initialize payment method change listener
+                paymentMethod.addEventListener('change', toggleMpesaFields);
+                
+                // Initialize the payment fields state
+                togglePaymentFields();
+            }
+            
+            // Initial appointment fields toggle
+            if (scheduleType) {
+                toggleAppointmentFields();
+                // Add change event listener
+                scheduleType.addEventListener('change', toggleAppointmentFields);
+            }
+            
+            // Initialize date and time pickers if they exist
+            if (appointmentDate && appointmentTime) {
+                // Flatpickr for date picker
+                flatpickr("#appointment_date", {
+                    dateFormat: "Y-m-d",
+                    minDate: "today"
+                });
+                
+                // Flatpickr for time picker
+                flatpickr("#appointment_time", {
+                    enableTime: true,
+                    noCalendar: true,
+                    dateFormat: "H:i",
+                    minuteIncrement: 15,
+                    time_24hr: true
+                });
+            }
+            
+            // Form validation
+            const form = document.querySelector('form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    // Additional validation can be added here if needed
+                    if (recordPaymentCheckbox && recordPaymentCheckbox.checked) {
+                        const amount = document.getElementById('payment_amount');
+                        const method = document.getElementById('payment_method');
+                        
+                        if (!amount.value) {
+                            e.preventDefault();
+                            alert('Please enter a payment amount');
+                            amount.focus();
+                            return false;
+                        }
+                        
+                        if (!method.value) {
+                            e.preventDefault();
+                            alert('Please select a payment method');
+                            method.focus();
+                            return false;
+                        }
+                        
+                        if (method.value === 'mpesa' && !document.getElementById('mpesa_phone').value) {
+                            e.preventDefault();
+                            alert('Please enter M-Pesa phone number');
+                            document.getElementById('mpesa_phone').focus();
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+            }
+        });
+    </script>
+    {% endblock %}

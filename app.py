@@ -1735,6 +1735,12 @@ def enter_lab_results(result_id):
             is_abnormal = request.form.get('is_abnormal', 'false').lower() == 'true'
             notes = request.form.get('notes', '')
             
+            # Get fee-related data
+            fee = float(request.form.get('fee', 0)) or 0.00
+            fee_paid = float(request.form.get('fee_paid', 0)) or 0.00
+            is_billed = request.form.get('is_billed', 'false').lower() == 'true'
+            billing_notes = request.form.get('billing_notes', '')
+            
             # Process test results from dynamic rows
             test_components = request.form.getlist('test_component')
             results = request.form.getlist('result')
@@ -1755,6 +1761,12 @@ def enter_lab_results(result_id):
             result.status = status
             result.is_abnormal = is_abnormal
             result.notes = notes
+            
+            # Update fee-related fields
+            result.fee = fee if is_billed else 0.00
+            result.fee_paid = fee_paid if is_billed else 0.00
+            result.is_billed = is_billed
+            result.billing_notes = billing_notes if is_billed else ''
             
             # Update result date if completing the test
             if status == 'completed' and not result.result_date:
@@ -1790,7 +1802,7 @@ def new_lab_result():
     
     if form.validate_on_submit():
         try:
-            # Create new lab result
+            # Create new lab result with fee information
             result = LabResult(
                 patient_id=form.patient_id.data,
                 provider_id=provider.id,
@@ -1800,7 +1812,12 @@ def new_lab_result():
                 notes=form.notes.data,
                 status='pending',
                 is_abnormal=False,
-                is_urgent=form.urgent.data
+                is_urgent=(form.urgency.data in ['urgent', 'stat']),  # Set is_urgent based on urgency
+                urgency=form.urgency.data,  # Store the actual urgency level
+                fee=form.fee.data if form.is_billed.data else 0.00,
+                fee_paid=0.00,  # Initialize with 0 paid
+                is_billed=form.is_billed.data,
+                billing_notes=form.billing_notes.data
             )
             
             db_ext.session.add(result)
@@ -2386,7 +2403,18 @@ def payment_status_badge(status):
     }
     return status_classes.get(status.lower(), 'bg-secondary')
 
+# Ensure the upload folder exists
+UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 if __name__ == '__main__':
-    # Create upload directories if they don't exist
+    # Create necessary directories if they don't exist
     os.makedirs('static/receipts', exist_ok=True)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    
+    # Get host and port from environment or use defaults
+    host = os.environ.get('HOST', '0.0.0.0')
+    port = int(os.environ.get('PORT', 5000))
+    
+    # Run the application
+    app.run(host=host, port=port, debug=app.debug)
