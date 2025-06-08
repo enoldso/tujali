@@ -567,6 +567,12 @@ def appointments():
     # Get dates with appointments for the mini-calendar
     appointment_dates = list(set([appt.date for appt in appointment_list if appt.date]))
     
+    # Debug logging
+    print(f"Appointments found: {len(appointment_list)}")
+    print(f"Calendar events prepared: {len(calendar_events)}")
+    if calendar_events:
+        print("Sample calendar event:", json.dumps(calendar_events[0], indent=2, default=str))
+    
     return render_template('appointments.html', 
                          provider=provider, 
                          appointments=appointment_list,

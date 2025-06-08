@@ -6,7 +6,8 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Tujali Telehealth{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/feather-icons/4.29.1/feather.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/loading-animations.css') }}">
     <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
@@ -27,74 +28,74 @@
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('dashboard') %}active{% endif %}" href="{{ url_for('dashboard') }}">
-                            <i data-feather="home"></i> Dashboard
+                            <i class="bi bi-house-door"></i> Dashboard
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('patients') %}active{% endif %}" href="{{ url_for('patients') }}">
-                            <i data-feather="users"></i> Patients
+                            <i class="bi bi-people"></i> Patients
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('appointments') %}active{% endif %}" href="{{ url_for('appointments') }}">
-                            <i data-feather="calendar"></i> Appointments
+                            <i class="bi bi-calendar3"></i> Appointments
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('messages') %}active{% endif %}" href="{{ url_for('messages') }}">
-                            <i data-feather="message-square"></i> Messages
+                            <i class="bi bi-chat-square-text"></i> Messages
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('health_info') %}active{% endif %}" href="{{ url_for('health_info') }}">
-                            <i data-feather="info"></i> Health Info
+                            <i class="bi bi-info-circle"></i> Health Info
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path.startswith(url_for('prescriptions')) %}active{% endif %}" href="{{ url_for('prescriptions') }}">
-                            <i data-feather="file-plus"></i> Prescriptions
+                            <i class="bi bi-file-earmark-medical"></i> Prescriptions
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('symptom_dashboard') %}active{% endif %}" href="{{ url_for('symptom_dashboard') }}">
-                            <i data-feather="activity"></i> Symptom Dashboard
+                            <i class="bi bi-graph-up"></i> Symptom Dashboard
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('health_info') %}active{% endif %}" href="{{ url_for('health_info') }}">
-                            <i data-feather="zap"></i> Health Information
+                            <i class="bi bi-lightning-charge"></i> Health Information
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('health_education') %}active{% endif %}" href="{{ url_for('health_education') }}">
-                            <i data-feather="book-open"></i> Health Education
+                            <i class="bi bi-journal-text"></i> Health Education
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('lab_results') %}active{% endif %}" href="{{ url_for('lab_results') }}">
-                            <i data-feather="clipboard"></i> Lab Results
+                            <i class="bi bi-clipboard2-pulse"></i> Lab Results
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('user_journey_list') %}active{% endif %}" href="{{ url_for('user_journey_list') }}">
-                            <i data-feather="trending-up"></i> User Journey
+                            <i class="bi bi-graph-up-arrow"></i> User Journey
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_for('payments') %}active{% endif %}" href="{{ url_for('payments') }}">
-                            <i data-feather="credit-card"></i> Payments
+                            <i class="bi bi-credit-card"></i> Payments
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path.startswith(url_for('lab_results')) %}active{% endif %}" href="{{ url_for('lab_results') }}">
-                            <i data-feather="flask"></i> Lab Results
+                            <i class="bi bi-activity"></i> Lab Results
                         </a>
                     </li>
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('logout') }}">
-                            <i data-feather="log-out"></i> Logout
+                            <i class="bi bi-box-arrow-right"></i> Logout
                         </a>
                     </li>
                 </ul>
@@ -135,26 +136,58 @@
     <!-- Footer -->
     <footer class="footer mt-5 py-3 bg-dark">
         <div class="container text-center">
-            <span class="text-muted">© 2023 Tujali Telehealth | Connecting rural Kenya to healthcare</span>
+            <span class="text-muted"> 2023 Tujali Telehealth | Connecting rural Kenya to healthcare</span>
         </div>
     </footer>
 
     <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/feather-icons/4.29.1/feather.min.js"></script>
-    <script>
-        // Initialize Feather Icons after DOM is fully loaded
-        document.addEventListener('DOMContentLoaded', function() {
-            try {
-                if (typeof feather !== 'undefined') {
-                    feather.replace();
-                }
-            } catch (e) {
-                console.error('Error initializing Feather Icons:', e);
-            }
-        });
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+    <!-- Load Feather Icons as a module -->
+    <script type="module" id="feather-script">
+        import * as feather from 'https://cdn.skypack.dev/feather-icons@4.29.1';
+        // Make feather available globally for compatibility
+        window.feather = feather;
+        console.log('Feather Icons loaded as module');
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <script>
+        // Function to initialize tooltips and popovers
+        function initializeBootstrapComponents() {
+            // Initialize tooltips
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // Initialize popovers
+            const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+            popoverTriggerList.map(function (popoverTriggerEl) {
+                return new bootstrap.Popover(popoverTriggerEl);
+            });
+        }
+
+        // Initialize everything when DOM is loaded
+        function initializeAll() {
+            console.log('Initializing application...');
+            // Initialize Bootstrap components
+            initializeBootstrapComponents();
+            // Dispatch a custom event when everything is initialized
+            document.dispatchEvent(new Event('app:initialized'));
+        }
+
+        // Initialize when DOM is loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeAll);
+        } else {
+            // In case the document is already loaded
+            setTimeout(initializeAll, 0);
+        }
+    </script>
+    
+    <!-- Page-specific scripts -->
     {% block extra_js %}{% endblock %}
 </body>
 </html>
