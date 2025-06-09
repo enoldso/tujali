@@ -832,77 +832,45 @@ def symptom_dashboard():
     # Get all health info records with category 'symptom'
     symptom_records = HealthInfo.query.filter_by(category='symptom').all()
     
+    # Add debug log
+    app.logger.debug(f"Found {len(symptom_records)} symptom records")
+    
     for record in symptom_records:
-        # Extract symptom details from the content
-        content = record.content.lower()
-        symptom_text = ''
-        symptom_date = record.created_at
-        
-        # Extract symptom text from the content (first line is usually the main symptom)
-        lines = [line.strip() for line in content.split('\n') if line.strip()]
-        if lines:
-            symptom_text = lines[0].replace('chief complaint:', '').strip()
+        try:
+            # Extract symptom details from the content
+            content = record.content.lower() if record.content else ''
+            symptom_text = ''
+            symptom_date = record.created_at or datetime.utcnow()
             
-        if not symptom_text:
-            continue
+            # Extract symptom text from the content (first line is usually the main symptom)
+            lines = [line.strip() for line in content.split('\n') if line.strip()]
+            if lines:
+                symptom_text = lines[0].replace('chief complaint:', '').strip()
+                
+            if not symptom_text:
+                continue
+                
+            # Extract severity and location from content
+            severity = 'Unknown'
+            location = 'Not specified'
+            for line in lines:
+                if 'severity:' in line.lower():
+                    severity = line.split('severity:')[-1].strip().capitalize()
+                    if 'mild' in severity.lower():
+                        severity = 'Mild'
+                    elif 'moderate' in severity.lower():
+                        severity = 'Moderate'
+                    elif 'severe' in severity.lower():
+                        severity = 'Severe'
+                elif 'location:' in line.lower():
+                    location = line.split('location:')[-1].strip()
             
-        # Extract severity and location from content
-        severity = 'Unknown'
-        location = 'Not specified'
-        for line in lines:
-            if 'severity:' in line:
-                severity = line.split('severity:')[-1].strip().capitalize()
-                if 'mild' in severity.lower():
-                    severity = 'Mild'
-                elif 'moderate' in severity.lower():
-                    severity = 'Moderate'
-                elif 'severe' in severity.lower():
-                    severity = 'Severe'
-            elif 'location:' in line:
-                location = line.split('location:')[-1].strip()
-        
-        # Add to symptom data with structure expected by the template
-        symptom_data.append({
-            'patient_id': 0,  # Default ID for walk-in patients
-            'patient_name': 'Walk-in Patient',
-            'symptom': symptom_text,
-            'normalized_name': symptom_text.split()[0] if symptom_text else 'unknown',
-            'category': 'other',  # Will be updated in the category detection
-            'confidence': 0.0,  # Will be calculated
-            'severity': severity,
-            'location': location,
-            'reported_via': 'Walk-in',
-            'date': symptom_date,
-            'patient_location': location,  # Using symptom location as fallback
-            'matched_keywords': [],  # Will be populated
-            'raw_data': {
-                'content': content,
-                'severity': severity,
-                'location': location,
-                'reported_via': 'Walk-in'
-            }
-        })
-        
-        # Update severity data
-        if severity in severity_data:
-            severity_data[severity] += 1
-        else:
-            severity_data['Unknown'] += 1
-            
-        # Update location data with structure expected by the template
-        location_key = f"{location} (Patient: {location})"  # Using symptom location for both
-        location_data[location_key] = location_data.get(location_key, 0) + 1
-            
-        # Update recent symptoms for outbreak detection
-        if symptom_date >= one_week_ago:
-            recent_symptoms[symptom_text]['count'] += 1
-            recent_symptoms[symptom_text]['dates'].add(symptom_date.date())
-                    # Determine symptom category and confidence
+            # Determine symptom category and confidence
             category = 'other'
             confidence = 0
             matched_keywords = []
             
-            # First check for exact matches in the symptom text
+            # Check for category matches in symptom text
             symptom_words = symptom_text.lower().split()
             
             for cat, data in symptom_categories.items():
@@ -917,20 +885,8 @@ def symptom_dashboard():
             # Normalize confidence score (0.0 to 1.0)
             confidence = min(1.0, confidence / 3) if confidence > 0 else 0
             
-            # Track for outbreak detection
-            symptom_key = f"{category}:{symptom_text.split()[0]}"  # First word as key
-            recent_symptoms[symptom_key]['count'] += 1
-            recent_symptoms[symptom_key]['dates'].add(symptom_date.date())
-            
-            # Update severity and category counts
-            severity_data[severity] = severity_data.get(severity, 0) + 1
-            category_counts[category] = category_counts.get(category, 0) + 1
-            
-            # Get symptom metadata with defaults
-            reported_via = 'Walk-in'  # Default for walk-in patients
-            
-            # Add to symptom data with enhanced metadata for walk-in patients
-            symptom_data.append({
+            # Add to symptom data with enhanced metadata
+            symptom_entry = {
                 'patient_id': 0,  # Default ID for walk-in patients
                 'patient_name': 'Walk-in Patient',
                 'symptom': symptom_text,
@@ -939,7 +895,7 @@ def symptom_dashboard():
                 'confidence': confidence,
                 'severity': severity,
                 'location': location,
-                'reported_via': reported_via,
+                'reported_via': 'Walk-in',
                 'date': symptom_date,
                 'patient_location': location or 'Unknown',
                 'matched_keywords': matched_keywords,
@@ -947,14 +903,34 @@ def symptom_dashboard():
                     'content': content,
                     'severity': severity,
                     'location': location,
-                    'reported_via': reported_via,
+                    'reported_via': 'Walk-in',
                     'date': symptom_date.isoformat() if symptom_date else None
                 }
-            })
+            }
             
-            # Update location data (using symptom-specific location if available)
+            symptom_data.append(symptom_entry)
+            
+            # Update severity data
+            severity_data[severity] = severity_data.get(severity, 0) + 1
+            
+            # Update category counts
+            category_counts[category] = category_counts.get(category, 0) + 1
+                
+            # Update location data
             location_key = f"{location} (Walk-in Patient)"
             location_data[location_key] = location_data.get(location_key, 0) + 1
+            
+            # Track for outbreak detection
+            if symptom_date >= one_week_ago:
+                symptom_key = f"{category}:{symptom_text.split()[0]}"
+                if symptom_key not in recent_symptoms:
+                    recent_symptoms[symptom_key] = {'count': 0, 'dates': set()}
+                recent_symptoms[symptom_key]['count'] += 1
+                recent_symptoms[symptom_key]['dates'].add(symptom_date.date())
+                
+        except Exception as e:
+            app.logger.error(f"Error processing symptom record {record.id}: {str(e)}")
+            continue
             
             # Track reporting method
             if 'reporting_methods' not in locals():
@@ -1097,6 +1073,17 @@ def symptom_dashboard():
             logger.error(f"Error generating health tips: {str(e)}")
             flash(f'Error generating health tips: {str(e)}', 'danger')
     
+    # Debug information
+    app.logger.debug(f"Symptom data count: {len(symptom_data)}")
+    app.logger.debug(f"Category counts: {category_counts}")
+    app.logger.debug(f"Severity data: {severity_data}")
+    app.logger.debug(f"Location data: {sorted_locations}")
+    app.logger.debug(f"Time data: {sorted_time_data}")
+    
+    # Ensure we have valid data for the template
+    if not symptom_data:
+        app.logger.warning("No symptom data found for the dashboard")
+    
     # Prepare data for the symptom dashboard
     return render_template('symptom_dashboard.html',
                          provider=provider,
@@ -1110,7 +1097,7 @@ def symptom_dashboard():
                          outbreak_signals=outbreak_signals,
                          total_symptoms=len(symptom_data),
                          unique_symptoms=list(set([s['symptom'] for s in symptom_data])),
-                         avg_severity=sum(s.get('severity_level', 0) for s in symptom_data) / len(symptom_data) if symptom_data else 0,
+                         avg_severity=sum(1 if s.get('severity') == 'Severe' else 0.5 if s.get('severity') == 'Moderate' else 0 for s in symptom_data) / len(symptom_data) if symptom_data else 0,
                          top_location=(max(location_data.items(), key=lambda x: x[1]) if location_data else ('None', 0)))
 
 @app.route('/health-tips/share/<int:patient_id>', methods=['POST'])
