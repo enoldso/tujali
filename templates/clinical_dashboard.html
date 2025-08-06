@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Clinical Dashboard - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">
+            <i data-feather="heart" class="me-2"></i>
+            Clinical Dashboard
+        </h1>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('patients') }}" class="btn btn-primary">
+                <i data-feather="users" class="me-1"></i>
+                View Patients
+            </a>
+            <a href="{{ url_for('appointments') }}" class="btn btn-outline-primary">
+                <i data-feather="calendar" class="me-1"></i>
+                Appointments
+            </a>
+        </div>
+    </div>
+
+    <!-- Clinical Overview -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ total_patients }}</h4>
+                            <p class="mb-0">Total Patients</p>
+                        </div>
+                        <i data-feather="users" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ today_appointments }}</h4>
+                            <p class="mb-0">Today's Appointments</p>
+                        </div>
+                        <i data-feather="calendar" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ total_appointments }}</h4>
+                            <p class="mb-0">Total Appointments</p>
+                        </div>
+                        <i data-feather="check-circle" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ pending_prescriptions }}</h4>
+                            <p class="mb-0">Pending Prescriptions</p>
+                        </div>
+                        <i data-feather="file-text" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Appointments -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Appointments</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_appointments %}
+                        {% for appointment in recent_appointments %}
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                            <div>
+                                <strong>Patient #{{ appointment.patient_id }}</strong>
+                                <small class="text-muted d-block">
+                                    {% if appointment.date %}
+                                        {% if appointment.date.strftime is defined %}
+                                            {{ appointment.date.strftime('%Y-%m-%d %H:%M') }}
+                                        {% else %}
+                                            {{ appointment.date }}
+                                        {% endif %}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-{% if appointment.status == 'completed' %}success{% elif appointment.status == 'scheduled' %}primary{% else %}secondary{% endif %}">
+                                    {{ appointment.status.title() }}
+                                </span>
+                                <small class="text-muted d-block">{{ appointment.appointment_type }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No recent appointments</p>
+                    {% endif %}
+                    <div class="mt-3">
+                        <a href="{{ url_for('appointments') }}" class="btn btn-sm btn-outline-primary">View All Appointments</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Prescriptions -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Prescriptions</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_prescriptions %}
+                        {% for prescription in recent_prescriptions %}
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                            <div>
+                                <strong>{{ prescription.medication_name }}</strong>
+                                <small class="text-muted d-block">Patient #{{ prescription.patient_id }}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-{% if prescription.status == 'dispensed' %}success{% elif prescription.status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                    {{ prescription.status.title() }}
+                                </span>
+                                <small class="text-muted d-block">{{ prescription.delivery_method.title() }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No recent prescriptions</p>
+                    {% endif %}
+                    <div class="mt-3">
+                        <a href="{{ url_for('prescriptions') }}" class="btn btn-sm btn-outline-primary">View All Prescriptions</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <a href="{{ url_for('patients') }}" class="btn btn-outline-primary w-100 mb-2">
+                                <i data-feather="users" class="me-2"></i>
+                                Manage Patients
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{{ url_for('create_prescription') }}" class="btn btn-outline-success w-100 mb-2">
+                                <i data-feather="file-plus" class="me-2"></i>
+                                New Prescription
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{{ url_for('walk_in_patients') }}" class="btn btn-outline-info w-100 mb-2">
+                                <i data-feather="user-plus" class="me-2"></i>
+                                Walk-In Patients
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{{ url_for('health_tips') }}" class="btn btn-outline-warning w-100 mb-2">
+                                <i data-feather="heart" class="me-2"></i>
+                                Health Tips
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

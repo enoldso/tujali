@@ -1,0 +1,325 @@
+{% extends 'base.html' %}
+
+{% block title %}Financial Management - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i data-feather="dollar-sign"></i> Financial Management</h2>
+            <div class="btn-group" role="group">
+                <a href="{{ url_for('create_bill') }}" class="btn btn-primary">
+                    <i data-feather="plus"></i> Create Bill
+                </a>
+                <a href="{{ url_for('record_payment') }}" class="btn btn-success">
+                    <i data-feather="credit-card"></i> Record Payment
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Financial Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="h4 mb-0">KSh {{ "%.2f"|format(total_billed) }}</div>
+                        <div class="small">Total Billed</div>
+                    </div>
+                    <div class="align-self-center">
+                        <i data-feather="file-text" style="width: 32px; height: 32px;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="h4 mb-0">KSh {{ "%.2f"|format(total_received) }}</div>
+                        <div class="small">Total Received</div>
+                    </div>
+                    <div class="align-self-center">
+                        <i data-feather="check-circle" style="width: 32px; height: 32px;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="h4 mb-0">KSh {{ "%.2f"|format(outstanding_amount) }}</div>
+                        <div class="small">Outstanding</div>
+                    </div>
+                    <div class="align-self-center">
+                        <i data-feather="clock" style="width: 32px; height: 32px;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="h4 mb-0">{{ pending_bills|length }}</div>
+                        <div class="small">Pending Bills</div>
+                    </div>
+                    <div class="align-self-center">
+                        <i data-feather="alert-circle" style="width: 32px; height: 32px;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Financial Activity Tabs -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <ul class="nav nav-tabs" id="financeTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                            <i data-feather="pie-chart"></i> Overview
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="bills-tab" data-bs-toggle="tab" data-bs-target="#bills" type="button" role="tab">
+                            <i data-feather="file-text"></i> Bills ({{ bills|length }})
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments" type="button" role="tab">
+                            <i data-feather="credit-card"></i> Payments ({{ payments|length }})
+                        </button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content mt-3" id="financeTabContent">
+                    <!-- Overview Tab -->
+                    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>Recent Bills</h5>
+                                {% if recent_bills %}
+                                <div class="list-group list-group-flush">
+                                    {% for bill in recent_bills %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>Bill #{{ bill.id }}</strong><br>
+                                            <small class="text-muted">{{ bill.patient.name }} - {{ bill.created_at.strftime('%d %b %Y') }}</small>
+                                        </div>
+                                        <div class="text-end">
+                                            <div class="fw-bold">KSh {{ "%.2f"|format(bill.total_amount) }}</div>
+                                            <span class="badge {% if bill.status == 'paid' %}bg-success{% else %}bg-warning{% endif %}">
+                                                {{ bill.status.title() }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="text-muted">No recent bills</p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Recent Payments</h5>
+                                {% if recent_payments %}
+                                <div class="list-group list-group-flush">
+                                    {% for payment in recent_payments %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>{{ payment.patient.name }}</strong><br>
+                                            <small class="text-muted">{{ payment.payment_method.title() }} - {{ payment.created_at.strftime('%d %b %Y') }}</small>
+                                        </div>
+                                        <div class="text-end">
+                                            <div class="fw-bold">KSh {{ "%.2f"|format(payment.amount) }}</div>
+                                            <span class="badge {% if payment.status == 'completed' %}bg-success{% else %}bg-warning{% endif %}">
+                                                {{ payment.status.title() }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="text-muted">No recent payments</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Bills Tab -->
+                    <div class="tab-pane fade" id="bills" role="tabpanel">
+                        {% if bills %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Bill #</th>
+                                        <th>Patient</th>
+                                        <th>Items</th>
+                                        <th>Total Amount</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for bill in bills %}
+                                    <tr>
+                                        <td><strong>#{{ bill.id }}</strong></td>
+                                        <td>
+                                            <strong>{{ bill.patient.name }}</strong><br>
+                                            <small class="text-muted">{{ bill.patient.phone_number }}</small>
+                                        </td>
+                                        <td>
+                                            {% for item in bill.items %}
+                                            <small class="d-block">{{ item.description }} ({{ item.quantity }}x)</small>
+                                            {% endfor %}
+                                            {% if not bill.items %}
+                                            <small class="text-muted">No items</small>
+                                            {% endif %}
+                                        </td>
+                                        <td><strong>KSh {{ "%.2f"|format(bill.total_amount) }}</strong></td>
+                                        <td>
+                                            <span class="badge {% if bill.status == 'paid' %}bg-success{% elif bill.status == 'pending' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                                {{ bill.status.title() }}
+                                            </span>
+                                        </td>
+                                        <td>{{ bill.created_at.strftime('%d %b %Y') }}</td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <a href="{{ url_for('edit_bill', bill_id=bill.id) }}" class="btn btn-sm btn-outline-primary">
+                                                    <i data-feather="edit-2"></i>
+                                                </a>
+                                                {% if bill.status != 'paid' %}
+                                                <button type="button" class="btn btn-sm btn-success" onclick="markBillPaid({{ bill.id }})">
+                                                    <i data-feather="check"></i>
+                                                </button>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i data-feather="file-text" class="text-muted mb-3" style="width: 48px; height: 48px;"></i>
+                            <h5 class="text-muted">No bills found</h5>
+                            <p class="text-muted">Create your first bill to get started.</p>
+                            <a href="{{ url_for('create_bill') }}" class="btn btn-primary">Create Bill</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Payments Tab -->
+                    <div class="tab-pane fade" id="payments" role="tabpanel">
+                        {% if payments %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Patient</th>
+                                        <th>Appointment</th>
+                                        <th>Amount</th>
+                                        <th>Method</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for payment in payments %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ payment.patient.name }}</strong><br>
+                                            <small class="text-muted">{{ payment.patient.phone_number }}</small>
+                                        </td>
+                                        <td>
+                                            {% if payment.appointment %}
+                                            {{ payment.appointment.date }} at {{ payment.appointment.time }}
+                                            {% else %}
+                                            <span class="text-muted">Walk-in</span>
+                                            {% endif %}
+                                        </td>
+                                        <td><strong>KSh {{ "%.2f"|format(payment.amount) }}</strong></td>
+                                        <td>
+                                            <span class="badge {% if payment.payment_method == 'mpesa' %}bg-info{% elif payment.payment_method == 'cash' %}bg-success{% else %}bg-secondary{% endif %}">
+                                                {{ payment.payment_method.title() }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge {% if payment.status == 'completed' %}bg-success{% elif payment.status == 'pending' %}bg-warning{% else %}bg-danger{% endif %}">
+                                                {{ payment.status.title() }}
+                                            </span>
+                                        </td>
+                                        <td>{{ payment.created_at.strftime('%d %b %Y') }}</td>
+                                        <td>
+                                            {% if payment.status == 'pending' %}
+                                            <form method="POST" action="{{ url_for('update_payment_status') }}" class="d-inline">
+                                                <input type="hidden" name="payment_id" value="{{ payment.id }}">
+                                                <button type="submit" name="status" value="completed" class="btn btn-sm btn-success">
+                                                    <i data-feather="check"></i> Complete
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i data-feather="credit-card" class="text-muted mb-3" style="width: 48px; height: 48px;"></i>
+                            <h5 class="text-muted">No payments found</h5>
+                            <p class="text-muted">Record your first payment to get started.</p>
+                            <a href="{{ url_for('record_payment') }}" class="btn btn-success">Record Payment</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function markBillPaid(billId) {
+    if (confirm('Mark this bill as paid?')) {
+        // Create a form and submit it
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("update_bill_status") }}';
+        
+        const billIdInput = document.createElement('input');
+        billIdInput.type = 'hidden';
+        billIdInput.name = 'bill_id';
+        billIdInput.value = billId;
+        
+        const statusInput = document.createElement('input');
+        statusInput.type = 'hidden';
+        statusInput.name = 'status';
+        statusInput.value = 'paid';
+        
+        form.appendChild(billIdInput);
+        form.appendChild(statusInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block title %}Laboratory Dashboard - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">
+            <i data-feather="search" class="me-2"></i>
+            Laboratory Dashboard
+        </h1>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('lab_tests') }}" class="btn btn-primary">
+                <i data-feather="file-text" class="me-1"></i>
+                View All Tests
+            </a>
+            <a href="{{ url_for('order_lab_test') }}" class="btn btn-outline-primary">
+                <i data-feather="plus" class="me-1"></i>
+                Order Test
+            </a>
+        </div>
+    </div>
+
+    <!-- Lab Overview with USSD Integration -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ total_tests|default(0) }}</h4>
+                            <p class="mb-0">Total Tests Ordered</p>
+                        </div>
+                        <i data-feather="activity" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ ussd_tests_today|default(0) }}</h4>
+                            <p class="mb-0">USSD Tests Today</p>
+                        </div>
+                        <i data-feather="phone" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ pending_tests|default(0) }}</h4>
+                            <p class="mb-0">Sample Collection Queue</p>
+                        </div>
+                        <i data-feather="clock" class="align-self-center"></i>
+                    </div>
+                </data>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ completed_tests|default(0) }}</h4>
+                            <p class="mb-0">Results Ready</p>
+                        </div>
+                        <i data-feather="check-circle" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sample Collection Queue -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Sample Collection Queue</h5>
+                </div>
+                <div class="card-body">
+                    {% if collection_queue %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Patient</th>
+                                        <th>Test Type</th>
+                                        <th>Priority</th>
+                                        <th>Ordered</th>
+                                        <th>Source</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for test in collection_queue %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ test.patient().name if test.patient() else 'Patient #' + test.patient_id|string }}</strong>
+                                            <small class="text-muted d-block">ID: {{ test.patient_id }}</small>
+                                        </td>
+                                        <td>{{ test.test_name }}</td>
+                                        <td>
+                                            <span class="badge bg-{% if test.priority == 'urgent' %}danger{% elif test.priority == 'high' %}warning{% else %}secondary{% endif %}">
+                                                {{ test.priority|default('Normal')|title }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if test.ordered_at %}
+                                                {% if test.ordered_at.strftime is defined %}
+                                                    {{ test.ordered_at.strftime('%Y-%m-%d %H:%M') }}
+                                                {% else %}
+                                                    {{ test.ordered_at }}
+                                                {% endif %}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if test.source == 'ussd' %}
+                                                <span class="badge bg-primary">
+                                                    <i data-feather="phone" class="small"></i> USSD
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">In-Person</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-success" onclick="collectSample({{ test.id }})">
+                                                    <i data-feather="check"></i>
+                                                </button>
+                                                <button class="btn btn-outline-primary" onclick="viewDetails({{ test.id }})">
+                                                    <i data-feather="eye"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No samples pending collection</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Lab Tests -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Lab Tests</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_tests %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Test ID</th>
+                                        <th>Test Name</th>
+                                        <th>Patient</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Cost</th>
+                                        <th>Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for test in recent_tests %}
+                                    <tr>
+                                        <td><strong>#{{ test.id }}</strong></td>
+                                        <td>{{ test.test_name }}</td>
+                                        <td>Patient #{{ test.patient_id }}</td>
+                                        <td><span class="badge bg-info">{{ test.test_type.title() }}</span></td>
+                                        <td>
+                                            <span class="badge bg-{% if test.status == 'completed' %}success{% elif test.status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                                {{ test.status.title() }}
+                                            </span>
+                                        </td>
+                                        <td>KSh {{ "%.2f"|format(test.cost) }}</td>
+                                        <td>{{ test.created_at.strftime('%m/%d/%Y') if test.created_at else 'N/A' }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                {% if test.status == 'pending' %}
+                                                <a href="{{ url_for('lab_test_results', test_id=test.id) }}" class="btn btn-outline-primary" title="Record Results">
+                                                    <i data-feather="edit"></i>
+                                                </a>
+                                                {% else %}
+                                                <a href="{{ url_for('lab_test_results', test_id=test.id) }}" class="btn btn-outline-info" title="View Results">
+                                                    <i data-feather="eye"></i>
+                                                </a>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i data-feather="search" class="text-muted mb-3" style="width: 48px; height: 48px;"></i>
+                            <p class="text-muted">No recent lab tests</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <a href="{{ url_for('order_lab_test') }}" class="btn btn-outline-primary w-100 mb-2">
+                                <i data-feather="plus" class="me-2"></i>
+                                Order New Test
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-warning w-100 mb-2">
+                                <i data-feather="clock" class="me-2"></i>
+                                Pending Tests
+                            </button>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-info w-100 mb-2">
+                                <i data-feather="download" class="me-2"></i>
+                                Export Results
+                            </button>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-success w-100 mb-2">
+                                <i data-feather="bar-chart" class="me-2"></i>
+                                Lab Reports
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

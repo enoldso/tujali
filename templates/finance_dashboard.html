@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Finance Dashboard - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">
+            <i data-feather="dollar-sign" class="me-2"></i>
+            Finance Dashboard
+        </h1>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('finance') }}" class="btn btn-primary">
+                <i data-feather="file-text" class="me-1"></i>
+                View All Bills
+            </a>
+            <a href="{{ url_for('create_bill') }}" class="btn btn-outline-primary">
+                <i data-feather="plus" class="me-1"></i>
+                Create Bill
+            </a>
+        </div>
+    </div>
+
+    <!-- Financial Overview -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ total_bills }}</h4>
+                            <p class="mb-0">Total Bills</p>
+                        </div>
+                        <i data-feather="file-text" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ paid_bills }}</h4>
+                            <p class="mb-0">Paid Bills</p>
+                        </div>
+                        <i data-feather="check-circle" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ pending_bills }}</h4>
+                            <p class="mb-0">Pending Bills</p>
+                        </div>
+                        <i data-feather="clock" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">KSh {{ "%.2f"|format(total_revenue|default(0)) }}</h4>
+                            <p class="mb-0">Total Revenue</p>
+                        </div>
+                        <i data-feather="dollar-sign" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Revenue Metrics -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card bg-secondary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">KSh {{ "%.2f"|format(pending_revenue|default(0)) }}</h4>
+                            <p class="mb-0">Pending Revenue</p>
+                        </div>
+                        <i data-feather="clock" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ total_payments }}</h4>
+                            <p class="mb-0">Total Payments</p>
+                        </div>
+                        <i data-feather="credit-card" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Bills -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Bills</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_bills %}
+                        {% for bill in recent_bills %}
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                            <div>
+                                <strong>Bill #{{ bill.id }}</strong>
+                                <small class="text-muted d-block">Patient ID: {{ bill.patient_id }}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="fw-bold">KSh {{ "%.2f"|format(bill.total_amount) }}</span>
+                                <span class="badge bg-{% if bill.status == 'paid' %}success{% elif bill.status == 'pending' %}warning{% else %}secondary{% endif %} d-block">
+                                    {{ bill.status.title() }}
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No recent bills</p>
+                    {% endif %}
+                    <div class="mt-3">
+                        <a href="{{ url_for('finance') }}" class="btn btn-sm btn-outline-primary">View All Bills</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Payments -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Payments</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_payments %}
+                        {% for payment in recent_payments %}
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                            <div>
+                                <strong>{{ payment.payment_method.title() }}</strong>
+                                <small class="text-muted d-block">Bill #{{ payment.bill_id }}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="fw-bold text-success">+KSh {{ "%.2f"|format(payment.amount) }}</span>
+                                <small class="text-muted d-block">{{ payment.created_at.strftime('%m/%d') if payment.created_at else 'N/A' }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No recent payments</p>
+                    {% endif %}
+                    <div class="mt-3">
+                        <a href="{{ url_for('record_payment') }}" class="btn btn-sm btn-outline-success">Record Payment</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <a href="{{ url_for('create_bill') }}" class="btn btn-outline-primary w-100 mb-2">
+                                <i data-feather="plus" class="me-2"></i>
+                                Create New Bill
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="{{ url_for('record_payment') }}" class="btn btn-outline-success w-100 mb-2">
+                                <i data-feather="credit-card" class="me-2"></i>
+                                Record Payment
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-info w-100 mb-2">
+                                <i data-feather="download" class="me-2"></i>
+                                Export Reports
+                            </button>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-warning w-100 mb-2">
+                                <i data-feather="alert-circle" class="me-2"></i>
+                                Overdue Bills
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

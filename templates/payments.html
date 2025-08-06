@@ -1,0 +1,461 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<style>
+    .payment-card {
+        transition: transform 0.2s;
+    }
+    .payment-card:hover {
+        transform: translateY(-5px);
+    }
+    .summary-card {
+        border-left: 4px solid var(--bs-primary);
+    }
+    .payment-pending {
+        border-left: 4px solid var(--bs-warning);
+    }
+    .payment-completed {
+        border-left: 4px solid var(--bs-success);
+    }
+    .payment-failed {
+        border-left: 4px solid var(--bs-danger);
+    }
+    .payment-waived {
+        border-left: 4px solid var(--bs-info);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2 class="mb-3"><i data-feather="credit-card" class="me-2"></i> Payment Management</h2>
+        <p class="text-muted">Manage appointment payments with multiple payment methods including M-Pesa.</p>
+    </div>
+</div>
+
+<!-- Payment Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card summary-card shadow-sm mb-3">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Total Payments</h6>
+                <h3 class="card-title">{{ payment_summary.total_count }}</h3>
+                <p class="card-text text-success">{{ payment_summary.total_amount }} KSh</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card summary-card shadow-sm mb-3">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Completed</h6>
+                <h3 class="card-title">{{ payment_summary.completed_count }}</h3>
+                <p class="card-text text-success">{{ payment_summary.completed_amount }} KSh</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card summary-card shadow-sm mb-3">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Pending</h6>
+                <h3 class="card-title">{{ payment_summary.pending_count }}</h3>
+                <p class="card-text text-warning">{{ payment_summary.pending_amount }} KSh</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card summary-card shadow-sm mb-3">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Failed</h6>
+                <h3 class="card-title">{{ payment_summary.failed_count }}</h3>
+                <p class="card-text text-danger">{{ payment_summary.failed_amount }} KSh</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Methods Summary Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Payment Methods Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- M-Pesa Summary -->
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #09ab54 !important;">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="rounded-circle p-2 me-3" style="background-color: rgba(9, 171, 84, 0.1);">
+                                        <i data-feather="smartphone" class="text-success"></i>
+                                    </div>
+                                    <h5 class="card-title mb-0">M-Pesa</h5>
+                                </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <p class="card-text text-muted mb-1">Transactions</p>
+                                        <h4>{{ payment_summary.payment_methods.mpesa.count }}</h4>
+                                    </div>
+                                    <div class="col-6">
+                                        <p class="card-text text-muted mb-1">Total Amount</p>
+                                        <h4 class="text-success">{{ payment_summary.payment_methods.mpesa.amount }} KSh</h4>
+                                        <p class="text-muted small">Completed: {{ payment_summary.payment_methods.mpesa.completed_amount }} KSh</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Cash Summary -->
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #3498db !important;">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="rounded-circle p-2 me-3" style="background-color: rgba(52, 152, 219, 0.1);">
+                                        <i data-feather="dollar-sign" class="text-primary"></i>
+                                    </div>
+                                    <h5 class="card-title mb-0">Cash</h5>
+                                </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <p class="card-text text-muted mb-1">Transactions</p>
+                                        <h4>{{ payment_summary.payment_methods.cash.count }}</h4>
+                                    </div>
+                                    <div class="col-6">
+                                        <p class="card-text text-muted mb-1">Total Amount</p>
+                                        <h4 class="text-primary">{{ payment_summary.payment_methods.cash.amount }} KSh</h4>
+                                        <p class="text-muted small">Completed: {{ payment_summary.payment_methods.cash.completed_amount }} KSh</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Insurance Summary -->
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #9b59b6 !important;">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="rounded-circle p-2 me-3" style="background-color: rgba(155, 89, 182, 0.1);">
+                                        <i data-feather="shield" class="text-purple"></i>
+                                    </div>
+                                    <h5 class="card-title mb-0">Insurance</h5>
+                                </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <p class="card-text text-muted mb-1">Transactions</p>
+                                        <h4>{{ payment_summary.payment_methods.insurance.count }}</h4>
+                                    </div>
+                                    <div class="col-6">
+                                        <p class="card-text text-muted mb-1">Total Amount</p>
+                                        <h4 style="color: #9b59b6;">{{ payment_summary.payment_methods.insurance.amount }} KSh</h4>
+                                        <p class="text-muted small">Completed: {{ payment_summary.payment_methods.insurance.completed_amount }} KSh</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Charts -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <div style="height: 250px;">
+                                    <canvas id="paymentMethodsChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <div style="height: 250px;">
+                                    <canvas id="paymentStatusChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Existing Payments -->
+    <div class="col-md-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="mb-0">Payment Records</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Patient</th>
+                                <th>Date</th>
+                                <th>Amount</th>
+                                <th>Method</th>
+                                <th>Reference</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if payments %}
+                                {% for payment in payments %}
+                                <tr>
+                                    <td>{{ payment.id }}</td>
+                                    <td>{{ payment.patient.name if payment.patient else 'N/A' }}</td>
+                                    <td>{{ payment.created_at.strftime('%d %b %Y') if payment.created_at else 'N/A' }}</td>
+                                    <td>{{ payment.amount }} KSh</td>
+                                    <td>
+                                        {% if payment.payment_method == 'mpesa' %}
+                                        <span class="badge bg-success">M-Pesa</span>
+                                        {% elif payment.payment_method == 'cash' %}
+                                        <span class="badge bg-primary">Cash</span>
+                                        {% elif payment.payment_method == 'insurance' %}
+                                        <span class="badge bg-info">Insurance</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ payment.payment_method }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ payment.mpesa_reference or 'N/A' }}</td>
+                                    <td>
+                                        {% if payment.status == 'pending' %}
+                                        <span class="badge bg-warning">Pending</span>
+                                        {% elif payment.status == 'completed' %}
+                                        <span class="badge bg-success">Completed</span>
+                                        {% elif payment.status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ payment.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="paymentAction{{ payment.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                                Actions
+                                            </button>
+                                            <ul class="dropdown-menu" aria-labelledby="paymentAction{{ payment.id }}">
+                                                <li>
+                                                    <button type="button" class="dropdown-item update-payment" 
+                                                           data-payment-id="{{ payment.id }}" 
+                                                           data-status="completed" 
+                                                           {% if payment.status == 'completed' %}disabled{% endif %}>
+                                                        Mark as Completed
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button type="button" class="dropdown-item update-payment" 
+                                                           data-payment-id="{{ payment.id }}" 
+                                                           data-status="failed" 
+                                                           {% if payment.status == 'failed' %}disabled{% endif %}>
+                                                        Mark as Failed
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-4">
+                                        <p class="text-muted mb-0">No payment records found</p>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Payment Form -->
+    <div class="col-md-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="mb-0">Record New Payment</h5>
+            </div>
+            <div class="card-body">
+                {% if pending_appointments %}
+                <form action="{{ url_for('create_payment') }}" method="post">
+                    <div class="mb-3">
+                        <label for="appointment_id" class="form-label">Appointment</label>
+                        <select class="form-select" id="appointment_id" name="appointment_id" required>
+                            <option value="">Select appointment</option>
+                            {% for appointment in pending_appointments %}
+                            <option value="{{ appointment.id }}" data-price="{{ appointment.price }}">
+                                {{ appointment.patient.name }} - {{ appointment.date }} at {{ appointment.time }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Amount (KSh)</label>
+                        <input type="number" class="form-control" id="amount" name="amount" min="0" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="phone_number" class="form-label">Phone Number</label>
+                        <input type="text" class="form-control" id="phone_number" name="phone_number" placeholder="+254..." required>
+                        <div class="form-text">Patient's phone number for M-Pesa payment</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="payment_method" class="form-label">Payment Method</label>
+                        <select class="form-select" id="payment_method" name="payment_method" required>
+                            <option value="mpesa">M-Pesa</option>
+                            <option value="cash">Cash</option>
+                            <option value="insurance">Insurance</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Record Payment</button>
+                </form>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    <p class="mb-0">No pending appointments requiring payment.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Update price field when appointment is selected
+        const appointmentSelect = document.getElementById('appointment_id');
+        const amountInput = document.getElementById('amount');
+        
+        if (appointmentSelect && amountInput) {
+            appointmentSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption && selectedOption.dataset.price) {
+                    amountInput.value = selectedOption.dataset.price;
+                } else {
+                    amountInput.value = '';
+                }
+            });
+        }
+        
+        // Handle payment status updates
+        const updateButtons = document.querySelectorAll('.update-payment');
+        updateButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const paymentId = this.dataset.paymentId;
+                const status = this.dataset.status;
+                updatePaymentStatus(paymentId, status);
+            });
+        });
+        
+        function updatePaymentStatus(paymentId, status) {
+            fetch("{{ url_for('update_payment_status') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'payment_id': paymentId,
+                    'status': status
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    console.error('Failed to update payment status');
+                    alert('Failed to update payment status');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while updating payment status');
+            });
+        }
+        
+        // Payment method chart
+        const methodsChart = document.getElementById('paymentMethodsChart');
+        if (methodsChart) {
+            new Chart(methodsChart, {
+                type: 'doughnut',
+                data: {
+                    labels: ['M-Pesa', 'Cash', 'Insurance'],
+                    datasets: [{
+                        data: [
+                            {{ payment_summary.payment_methods.mpesa.amount }}, 
+                            {{ payment_summary.payment_methods.cash.amount }}, 
+                            {{ payment_summary.payment_methods.insurance.amount }}
+                        ],
+                        backgroundColor: [
+                            '#09ab54',  // M-Pesa green
+                            '#3498db',  // Cash blue
+                            '#9b59b6'   // Insurance purple
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Payment Method Distribution'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Payment status chart
+        const statusChart = document.getElementById('paymentStatusChart');
+        if (statusChart) {
+            new Chart(statusChart, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Completed', 'Pending', 'Failed'],
+                    datasets: [{
+                        data: [
+                            {{ payment_summary.completed_amount }}, 
+                            {{ payment_summary.pending_amount }}, 
+                            {{ payment_summary.failed_count }}
+                        ],
+                        backgroundColor: [
+                            '#28a745',  // Completed green
+                            '#ffc107',  // Pending yellow
+                            '#dc3545'   // Failed red
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Payment Status Distribution'
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

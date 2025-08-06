@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Order Lab Test - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h4><i data-feather="plus-circle"></i> Order Lab Test</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.patient_id.label(class="form-label") }}
+                            {{ form.patient_id(class="form-select") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.appointment_id.label(class="form-label") }}
+                            {{ form.appointment_id(class="form-select") }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            {{ form.test_name.label(class="form-label") }}
+                            {{ form.test_name(class="form-control", placeholder="e.g., Complete Blood Count (CBC)") }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.test_type.label(class="form-label") }}
+                            {{ form.test_type(class="form-select") }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.cost.label(class="form-label") }}
+                            <div class="input-group">
+                                <span class="input-group-text">KSh</span>
+                                {{ form.cost(class="form-control", placeholder="0.00") }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.instructions.label(class="form-label") }}
+                        {{ form.instructions(class="form-control", rows="3", placeholder="Special instructions, preparation requirements, etc...") }}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('lab_tests') }}" class="btn btn-secondary">Cancel</a>
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

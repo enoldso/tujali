@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Pharmacy Management - Tujali{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">Pharmacy Management Dashboard</h1>
+        <div class="btn-group">
+            <a href="{{ url_for('prescriptions') }}" class="btn btn-primary">
+                <i data-feather="file-text" class="me-1"></i>
+                View All Prescriptions
+            </a>
+            <a href="{{ url_for('create_prescription') }}" class="btn btn-outline-primary">
+                <i data-feather="plus" class="me-1"></i>
+                New Prescription
+            </a>
+        </div>
+    </div>
+
+    <!-- Pharmacy Overview Metrics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ pending_prescriptions }}</h4>
+                            <p class="mb-0">Pending Prescriptions</p>
+                        </div>
+                        <i data-feather="clock" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ dispensed_today }}</h4>
+                            <p class="mb-0">Dispensed Today</p>
+                        </div>
+                        <i data-feather="check-circle" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ low_stock_items }}</h4>
+                            <p class="mb-0">Low Stock Items</p>
+                        </div>
+                        <i data-feather="alert-triangle" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-1">{{ delivery_requests }}</h4>
+                            <p class="mb-0">Delivery Requests</p>
+                        </div>
+                        <i data-feather="truck" class="align-self-center"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Prescriptions -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Prescriptions</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_prescriptions %}
+                        {% for prescription in recent_prescriptions %}
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                            <div>
+                                <strong>RX #{{ prescription.id }}</strong>
+                                <small class="text-muted d-block">Patient: {{ prescription.patient().name if prescription.patient() else 'Unknown' }}</small>
+                                <small class="text-muted d-block">
+                                    {% if prescription.created_at %}
+                                        {% if prescription.created_at.strftime is defined %}
+                                            {{ prescription.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                        {% else %}
+                                            {{ prescription.created_at }}
+                                        {% endif %}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-{% if prescription.status == 'dispensed' %}success{% elif prescription.status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                    {{ prescription.status.title() }}
+                                </span>
+                                {% if prescription.delivery_method == 'delivery' %}
+                                    <small class="text-muted d-block">
+                                        <i data-feather="truck" class="small"></i> Delivery
+                                    </small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No recent prescriptions</p>
+                    {% endif %}
+                    <div class="mt-3">
+                        <a href="{{ url_for('prescriptions') }}" class="btn btn-sm btn-outline-primary">View All Prescriptions</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Drug Interaction Alerts -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Drug Interaction Alerts</h5>
+                </div>
+                <div class="card-body">
+                    {% if drug_interactions %}
+                        {% for interaction in drug_interactions %}
+                        <div class="alert alert-warning py-2 mb-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Patient #{{ interaction.patient_id }}</strong>
+                                    <small class="d-block">{{ interaction.warning }}</small>
+                                </div>
+                                <i data-feather="alert-triangle" class="text-warning"></i>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No current drug interaction alerts</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Management -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Inventory Status</h5>
+                </div>
+                <div class="card-body">
+                    {% if inventory_items %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Drug Name</th>
+                                        <th>Current Stock</th>
+                                        <th>Minimum Stock</th>
+                                        <th>Status</th>
+                                        <th>Last Restocked</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in inventory_items %}
+                                    <tr class="{% if item.current_stock <= item.minimum_stock %}table-warning{% endif %}">
+                                        <td>{{ item.drug_name }}</td>
+                                        <td>{{ item.current_stock }} {{ item.unit }}</td>
+                                        <td>{{ item.minimum_stock }} {{ item.unit }}</td>
+                                        <td>
+                                            {% if item.current_stock <= item.minimum_stock %}
+                                                <span class="badge bg-warning">Low Stock</span>
+                                            {% elif item.current_stock == 0 %}
+                                                <span class="badge bg-danger">Out of Stock</span>
+                                            {% else %}
+                                                <span class="badge bg-success">In Stock</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ item.last_restocked or 'N/A' }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" onclick="updateStock({{ item.id }})">
+                                                    <i data-feather="plus"></i>
+                                                </button>
+                                                <button class="btn btn-outline-secondary" onclick="viewDetails({{ item.id }})">
+                                                    <i data-feather="eye"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No inventory items found</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateStock(itemId) {
+    // Placeholder for stock update functionality
+    alert('Stock update feature coming soon for item ' + itemId);
+}
+
+function viewDetails(itemId) {
+    // Placeholder for viewing item details
+    alert('Item details feature coming soon for item ' + itemId);
+}
+</script>
+{% endblock %}

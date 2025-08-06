@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+
+{% block title %}Patients - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2 class="mb-4">
+            <i data-feather="users"></i> Patients
+        </h2>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">All Patients</h5>
+                    <div class="input-group" style="max-width: 300px;">
+                        <input type="text" class="form-control" placeholder="Search patients..." id="patientSearch">
+                        <button class="btn btn-outline-secondary" type="button">
+                            <i data-feather="search" style="width: 16px; height: 16px;"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Age</th>
+                                <th>Gender</th>
+                                <th>Location</th>
+                                <th>Phone</th>
+                                <th>Language</th>
+                                <th>Registered</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if patients %}
+                                {% for patient in patients %}
+                                <tr>
+                                    <td>{{ patient.id }}</td>
+                                    <td>{{ patient.name }}</td>
+                                    <td>{{ patient.age }}</td>
+                                    <td>{{ patient.gender }}</td>
+                                    <td>{{ patient.location }}</td>
+                                    <td>{{ patient.phone_number }}</td>
+                                    <td>{{ 'English' if patient.language == 'en' else 'Swahili' }}</td>
+                                    <td>{{ patient.created_at.strftime('%d %b %Y') }}</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{{ url_for('patient_detail', patient_id=patient.id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                            <a href="{{ url_for('patient_messages', patient_id=patient.id) }}" class="btn btn-sm btn-outline-info">Message</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="9" class="text-center py-4">
+                                        <i data-feather="users" class="mb-2 text-muted"></i>
+                                        <p class="mb-0 text-muted">No patients registered yet</p>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Patient Statistics -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="card-title">Patient Distribution by Location</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="locationChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="card-title">Patient Age Distribution</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="ageChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Patient search functionality
+    const searchInput = document.getElementById('patientSearch');
+    const tableRows = document.querySelectorAll('tbody tr');
+    
+    searchInput.addEventListener('keyup', function() {
+        const searchTerm = searchInput.value.toLowerCase();
+        
+        tableRows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            if (text.includes(searchTerm)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+    
+    // Location chart
+    const locationCtx = document.getElementById('locationChart').getContext('2d');
+    new Chart(locationCtx, {
+        type: 'pie',
+        data: {
+            labels: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Other'],
+            datasets: [{
+                data: [5, 3, 2, 1, 2],
+                backgroundColor: [
+                    '#6610f2', '#fd7e14', '#20c997', '#e83e8c', '#6c757d'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'right',
+                }
+            }
+        }
+    });
+    
+    // Age chart
+    const ageCtx = document.getElementById('ageChart').getContext('2d');
+    new Chart(ageCtx, {
+        type: 'bar',
+        data: {
+            labels: ['0-18', '19-30', '31-45', '46-60', '61+'],
+            datasets: [{
+                label: 'Patients by Age Group',
+                data: [3, 5, 4, 2, 1],
+                backgroundColor: '#0d6efd',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tujali Telehealth USSD Simulator</title>
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    <style>
+        body {
+            padding: 20px;
+            background-color: var(--bs-dark);
+            color: var(--bs-light);
+        }
+        
+        .phone-container {
+            max-width: 350px;
+            margin: 0 auto;
+            border: 10px solid #333;
+            border-radius: 30px;
+            background-color: #000;
+            padding: 20px;
+            position: relative;
+        }
+        
+        .phone-screen {
+            background-color: #222;
+            color: #fff;
+            font-family: monospace;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+            height: 250px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .phone-keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        
+        .key {
+            background-color: #444;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 15px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .key:hover {
+            background-color: #555;
+        }
+        
+        .key:active {
+            background-color: #666;
+        }
+        
+        .control-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .control-buttons button {
+            padding: 10px;
+        }
+        
+        .phone-input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 15px;
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 5px;
+        }
+        
+        .phone-config {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #333;
+            border-radius: 5px;
+        }
+        
+        .session-history {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #333;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .history-item {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+        
+        .request {
+            color: #8bc34a;
+        }
+        
+        .response {
+            color: #03a9f4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Tujali Telehealth USSD Simulator</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="phone-container">
+                    <div class="phone-screen" id="screen">Welcome to Tujali Telehealth USSD Simulator
+
+Press any key to start...</div>
+                    
+                    <input type="text" id="inputField" class="phone-input" placeholder="Custom input..." aria-label="Custom input">
+                    
+                    <div class="phone-keypad">
+                        <button class="key" onclick="pressKey('1')">1</button>
+                        <button class="key" onclick="pressKey('2')">2</button>
+                        <button class="key" onclick="pressKey('3')">3</button>
+                        <button class="key" onclick="pressKey('4')">4</button>
+                        <button class="key" onclick="pressKey('5')">5</button>
+                        <button class="key" onclick="pressKey('6')">6</button>
+                        <button class="key" onclick="pressKey('7')">7</button>
+                        <button class="key" onclick="pressKey('8')">8</button>
+                        <button class="key" onclick="pressKey('9')">9</button>
+                        <button class="key" onclick="pressKey('*')">*</button>
+                        <button class="key" onclick="pressKey('0')">0</button>
+                        <button class="key" onclick="pressKey('#')">#</button>
+                    </div>
+                    
+                    <div class="control-buttons">
+                        <button class="btn btn-primary" onclick="sendInput()">Send</button>
+                        <button class="btn btn-secondary" onclick="resetSession()">Reset Session</button>
+                    </div>
+                </div>
+                
+                <div class="phone-config">
+                    <h3>Configuration</h3>
+                    <div class="mb-3">
+                        <label for="phoneNumber" class="form-label">Phone Number</label>
+                        <input type="text" class="form-control" id="phoneNumber" value="+254712345678" aria-label="Phone Number">
+                    </div>
+                    <div class="mb-3">
+                        <label for="serviceCode" class="form-label">Service Code</label>
+                        <input type="text" class="form-control" id="serviceCode" value="*384*4255#" aria-label="Service Code">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="session-history">
+                    <h3>Session History</h3>
+                    <div id="history"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let sessionId = generateSessionId();
+        let currentText = '';
+        let initialized = false;
+        
+        function generateSessionId() {
+            return Math.random().toString(36).substring(2, 15) + 
+                   Math.random().toString(36).substring(2, 15);
+        }
+        
+        function pressKey(key) {
+            document.getElementById('inputField').value += key;
+        }
+        
+        function sendInput() {
+            const input = document.getElementById('inputField').value.trim();
+            if (!initialized && input === '') {
+                // First request without input
+                callUSSD('');
+                initialized = true;
+            } else {
+                callUSSD(input);
+            }
+            document.getElementById('inputField').value = '';
+        }
+        
+        function resetSession() {
+            sessionId = generateSessionId();
+            currentText = '';
+            initialized = false;
+            
+            const screen = document.getElementById('screen');
+            screen.innerText = 'Session reset.\n\nPress any key to start...';
+            
+            addToHistory('System', 'Session reset', 'response');
+        }
+        
+        function callUSSD(input) {
+            const phoneNumber = document.getElementById('phoneNumber').value;
+            const serviceCode = document.getElementById('serviceCode').value;
+            
+            if (currentText === '') {
+                currentText = input;
+            } else if (input !== '') {
+                currentText = currentText + '*' + input;
+            }
+            
+            const screen = document.getElementById('screen');
+            screen.innerText = 'Processing...';
+            
+            addToHistory('User', input || '(initial request)', 'request');
+            
+            // Call the Flask API endpoint for USSD
+            fetch('/ussd', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    sessionId: sessionId,
+                    serviceCode: serviceCode,
+                    phoneNumber: phoneNumber,
+                    text: currentText
+                })
+            })
+            .then(response => response.text())
+            .then(data => {
+                // Update the screen with the response
+                screen.innerText = data.replace(/^(CON|END) /, '');
+                addToHistory('System', data, 'response');
+                
+                // If the response starts with END, reset the session
+                if (data.startsWith('END')) {
+                    sessionId = generateSessionId();
+                    currentText = '';
+                    initialized = false;
+                }
+            })
+            .catch(error => {
+                screen.innerText = 'Error: Could not connect to the server.\n\nPlease ensure the Flask application is running.';
+                addToHistory('Error', error.message, 'response');
+            });
+        }
+        
+        function addToHistory(sender, message, type) {
+            const history = document.getElementById('history');
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            
+            const timestamp = new Date().toLocaleTimeString();
+            item.innerHTML = `<div><strong>${timestamp} - ${sender}:</strong></div>
+                             <div class="${type}">${message}</div>`;
+            
+            history.insertBefore(item, history.firstChild);
+        }
+        
+        // Allow pressing Enter in the input field
+        document.getElementById('inputField').addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                sendInput();
+            }
+        });
+        
+        // Initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            addToHistory('System', 'USSD Simulator initialized', 'response');
+        });
+    </script>
+</body>
+</html>

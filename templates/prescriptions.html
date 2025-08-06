@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}Prescriptions - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i data-feather="file-text"></i> Prescriptions</h2>
+            <a href="{{ url_for('create_prescription') }}" class="btn btn-primary">
+                <i data-feather="plus"></i> Create Prescription
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                {% if prescriptions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Patient</th>
+                                <th>Medication</th>
+                                <th>Delivery Method</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for prescription in prescriptions %}
+                            <tr>
+                                <td>
+                                    <strong>{{ prescription.patient.name }}</strong><br>
+                                    <small class="text-muted">{{ prescription.patient.phone_number }}</small>
+                                </td>
+                                <td>
+                                    {% for med in prescription.medications %}
+                                    <strong>{{ med.name }}</strong><br>
+                                    <small class="text-muted">{{ med.dosage }} - {{ med.frequency }}</small><br>
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    <span class="badge {% if prescription.delivery_method == 'drone' %}bg-info{% elif prescription.delivery_method == 'bike' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                        {{ prescription.delivery_method.title() }}
+                                    </span>
+                                    {% if prescription.delivery_fee > 0 %}
+                                    <br><small class="text-muted">Fee: KSh {{ prescription.delivery_fee }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge {% if prescription.status == 'pending' %}bg-warning{% elif prescription.status == 'dispensed' %}bg-success{% elif prescription.status == 'delivered' %}bg-info{% else %}bg-secondary{% endif %}">
+                                        {{ prescription.status.title() }}
+                                    </span>
+                                </td>
+                                <td>{{ prescription.created_at.strftime('%d %b %Y') }}</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <form method="POST" action="{{ url_for('update_prescription_status', prescription_id=prescription.id) }}" class="d-inline">
+                                            <input type="hidden" name="prescription_id" value="{{ prescription.id }}">
+                                            {% if prescription.status == 'pending' %}
+                                            <button type="submit" name="status" value="dispensed" class="btn btn-sm btn-success">Mark Dispensed</button>
+                                            {% elif prescription.status == 'dispensed' %}
+                                            <button type="submit" name="status" value="delivered" class="btn btn-sm btn-info">Mark Delivered</button>
+                                            {% endif %}
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i data-feather="file-text" class="text-muted mb-3" style="width: 48px; height: 48px;"></i>
+                    <h5 class="text-muted">No prescriptions found</h5>
+                    <p class="text-muted">Create your first prescription to get started.</p>
+                    <a href="{{ url_for('create_prescription') }}" class="btn btn-primary">Create Prescription</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

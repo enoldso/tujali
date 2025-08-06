@@ -1,0 +1,377 @@
+{% extends 'base.html' %}
+
+{% block title %}Appointments - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2 class="mb-4">
+            <i data-feather="calendar"></i> Appointments
+        </h2>
+    </div>
+</div>
+
+<!-- Appointment Status Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-white bg-warning h-100">
+            <div class="card-body">
+                <h5 class="card-title">Pending</h5>
+                <h2 class="display-4">{{ appointments|selectattr('status', 'equalto', 'pending')|list|length }}</h2>
+                <p class="card-text">Waiting for confirmation</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-white bg-success h-100">
+            <div class="card-body">
+                <h5 class="card-title">Confirmed</h5>
+                <h2 class="display-4">{{ appointments|selectattr('status', 'equalto', 'confirmed')|list|length }}</h2>
+                <p class="card-text">Ready for consultation</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-white bg-info h-100">
+            <div class="card-body">
+                <h5 class="card-title">Completed</h5>
+                <h2 class="display-4">{{ appointments|selectattr('status', 'equalto', 'completed')|list|length }}</h2>
+                <p class="card-text">Successfully conducted</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-white bg-danger h-100">
+            <div class="card-body">
+                <h5 class="card-title">Cancelled</h5>
+                <h2 class="display-4">{{ appointments|selectattr('status', 'equalto', 'cancelled')|list|length }}</h2>
+                <p class="card-text">Could not be conducted</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Appointment List -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <ul class="nav nav-tabs card-header-tabs" id="appointmentTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" type="button" role="tab" aria-controls="all" aria-selected="true">All</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" aria-controls="pending" aria-selected="false">Pending</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="confirmed-tab" data-bs-toggle="tab" data-bs-target="#confirmed" type="button" role="tab" aria-controls="confirmed" aria-selected="false">Confirmed</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="completed-tab" data-bs-toggle="tab" data-bs-target="#completed" type="button" role="tab" aria-controls="completed" aria-selected="false">Completed</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="cancelled-tab" data-bs-toggle="tab" data-bs-target="#cancelled" type="button" role="tab" aria-controls="cancelled" aria-selected="false">Cancelled</button>
+                        </li>
+                    </ul>
+                    <div class="input-group" style="max-width: 300px;">
+                        <input type="text" class="form-control" placeholder="Search appointments..." id="appointmentSearch">
+                        <button class="btn btn-outline-secondary" type="button">
+                            <i data-feather="search" style="width: 16px; height: 16px;"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="tab-content" id="appointmentTabsContent">
+                    <div class="tab-pane fade show active" id="all" role="tabpanel" aria-labelledby="all-tab">
+                        <div class="table-responsive">
+                            <table class="table table-hover appointment-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Patient ID</th>
+                                        <th>Date</th>
+                                        <th>Time</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if appointments %}
+                                        {% for appointment in appointments %}
+                                        <tr>
+                                            <td>{{ appointment.id }}</td>
+                                            <td>
+                                                <a href="{{ url_for('patient_detail', patient_id=appointment.patient_id) }}">
+                                                    {{ appointment.patient_id }}
+                                                </a>
+                                            </td>
+                                            <td>{{ appointment.date }}</td>
+                                            <td>{{ appointment.time }}</td>
+                                            <td>
+                                                <span class="badge {% if appointment.status == 'pending' %}bg-warning{% elif appointment.status == 'confirmed' %}bg-success{% elif appointment.status == 'completed' %}bg-info{% elif appointment.status == 'cancelled' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                                    {{ appointment.status|capitalize }}
+                                                </span>
+                                            </td>
+                                            <td>{{ appointment.created_at.strftime('%d %b %Y') }}</td>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    {% if appointment.status == 'pending' %}
+                                                    <form action="{{ url_for('update_appointment') }}" method="post" class="d-inline">
+                                                        <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
+                                                        <input type="hidden" name="status" value="confirmed">
+                                                        <button type="submit" class="btn btn-sm btn-success">Confirm</button>
+                                                    </form>
+                                                    <form action="{{ url_for('update_appointment') }}" method="post" class="d-inline">
+                                                        <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
+                                                        <input type="hidden" name="status" value="cancelled">
+                                                        <button type="submit" class="btn btn-sm btn-danger">Cancel</button>
+                                                    </form>
+                                                    {% elif appointment.status == 'confirmed' %}
+                                                    <form action="{{ url_for('update_appointment') }}" method="post" class="d-inline">
+                                                        <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
+                                                        <input type="hidden" name="status" value="completed">
+                                                        <button type="submit" class="btn btn-sm btn-primary">Complete</button>
+                                                    </form>
+                                                    <form action="{{ url_for('update_appointment') }}" method="post" class="d-inline">
+                                                        <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
+                                                        <input type="hidden" name="status" value="cancelled">
+                                                        <button type="submit" class="btn btn-sm btn-danger">Cancel</button>
+                                                    </form>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="7" class="text-center py-4">
+                                                <i data-feather="calendar" class="mb-2 text-muted"></i>
+                                                <p class="mb-0 text-muted">No appointments scheduled yet</p>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Pending Tab -->
+                    <div class="tab-pane fade" id="pending" role="tabpanel" aria-labelledby="pending-tab">
+                        <div class="table-responsive">
+                            <table class="table table-hover appointment-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Patient ID</th>
+                                        <th>Date</th>
+                                        <th>Time</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% set pending_appointments = appointments|selectattr('status', 'equalto', 'pending')|list %}
+                                    {% if pending_appointments %}
+                                        {% for appointment in pending_appointments %}
+                                        <tr>
+                                            <td>{{ appointment.id }}</td>
+                                            <td>
+                                                <a href="{{ url_for('patient_detail', patient_id=appointment.patient_id) }}">
+                                                    {{ appointment.patient_id }}
+                                                </a>
+                                            </td>
+                                            <td>{{ appointment.date }}</td>
+                                            <td>{{ appointment.time }}</td>
+                                            <td>{{ appointment.created_at.strftime('%d %b %Y') }}</td>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    <form action="{{ url_for('update_appointment') }}" method="post" class="d-inline">
+                                                        <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
+                                                        <input type="hidden" name="status" value="confirmed">
+                                                        <button type="submit" class="btn btn-sm btn-success">Confirm</button>
+                                                    </form>
+                                                    <form action="{{ url_for('update_appointment') }}" method="post" class="d-inline">
+                                                        <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
+                                                        <input type="hidden" name="status" value="cancelled">
+                                                        <button type="submit" class="btn btn-sm btn-danger">Cancel</button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="6" class="text-center py-4">
+                                                <i data-feather="calendar" class="mb-2 text-muted"></i>
+                                                <p class="mb-0 text-muted">No pending appointments</p>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Confirmed Tab -->
+                    <div class="tab-pane fade" id="confirmed" role="tabpanel" aria-labelledby="confirmed-tab">
+                        <div class="table-responsive">
+                            <table class="table table-hover appointment-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Patient ID</th>
+                                        <th>Date</th>
+                                        <th>Time</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% set confirmed_appointments = appointments|selectattr('status', 'equalto', 'confirmed')|list %}
+                                    {% if confirmed_appointments %}
+                                        {% for appointment in confirmed_appointments %}
+                                        <tr>
+                                            <td>{{ appointment.id }}</td>
+                                            <td>
+                                                <a href="{{ url_for('patient_detail', patient_id=appointment.patient_id) }}">
+                                                    {{ appointment.patient_id }}
+                                                </a>
+                                            </td>
+                                            <td>{{ appointment.date }}</td>
+                                            <td>{{ appointment.time }}</td>
+                                            <td>{{ appointment.created_at.strftime('%d %b %Y') }}</td>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    <form action="{{ url_for('update_appointment') }}" method="post" class="d-inline">
+                                                        <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
+                                                        <input type="hidden" name="status" value="completed">
+                                                        <button type="submit" class="btn btn-sm btn-primary">Complete</button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="6" class="text-center py-4">
+                                                <i data-feather="calendar" class="mb-2 text-muted"></i>
+                                                <p class="mb-0 text-muted">No confirmed appointments</p>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Other tabs similar structure -->
+                    <div class="tab-pane fade" id="completed" role="tabpanel" aria-labelledby="completed-tab">
+                        <!-- Similar table for completed appointments -->
+                        <div class="table-responsive">
+                            <table class="table table-hover appointment-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Patient ID</th>
+                                        <th>Date</th>
+                                        <th>Time</th>
+                                        <th>Created</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% set completed_appointments = appointments|selectattr('status', 'equalto', 'completed')|list %}
+                                    {% if completed_appointments %}
+                                        {% for appointment in completed_appointments %}
+                                        <tr>
+                                            <td>{{ appointment.id }}</td>
+                                            <td>
+                                                <a href="{{ url_for('patient_detail', patient_id=appointment.patient_id) }}">
+                                                    {{ appointment.patient_id }}
+                                                </a>
+                                            </td>
+                                            <td>{{ appointment.date }}</td>
+                                            <td>{{ appointment.time }}</td>
+                                            <td>{{ appointment.created_at.strftime('%d %b %Y') }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="5" class="text-center py-4">
+                                                <i data-feather="calendar" class="mb-2 text-muted"></i>
+                                                <p class="mb-0 text-muted">No completed appointments</p>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="cancelled" role="tabpanel" aria-labelledby="cancelled-tab">
+                        <!-- Similar table for cancelled appointments -->
+                        <div class="table-responsive">
+                            <table class="table table-hover appointment-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Patient ID</th>
+                                        <th>Date</th>
+                                        <th>Time</th>
+                                        <th>Created</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% set cancelled_appointments = appointments|selectattr('status', 'equalto', 'cancelled')|list %}
+                                    {% if cancelled_appointments %}
+                                        {% for appointment in cancelled_appointments %}
+                                        <tr>
+                                            <td>{{ appointment.id }}</td>
+                                            <td>
+                                                <a href="{{ url_for('patient_detail', patient_id=appointment.patient_id) }}">
+                                                    {{ appointment.patient_id }}
+                                                </a>
+                                            </td>
+                                            <td>{{ appointment.date }}</td>
+                                            <td>{{ appointment.time }}</td>
+                                            <td>{{ appointment.created_at.strftime('%d %b %Y') }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="5" class="text-center py-4">
+                                                <i data-feather="calendar" class="mb-2 text-muted"></i>
+                                                <p class="mb-0 text-muted">No cancelled appointments</p>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Appointment Calendar -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent">
+                <h5 class="card-title">Appointment Calendar</h5>
+            </div>
+            <div class="card-body">
+                <div id="appointmentCalendar"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/appointments.js') }}"></script>
+{% endblock %}

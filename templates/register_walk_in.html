@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}Register Walk-In Patient - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 offset-md-1">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h4><i data-feather="user-plus"></i> Register Walk-In Patient</h4>
+            </div>
+            <div class="card-body">
+                <!-- Existing Patient Registration -->
+                <div class="mb-4">
+                    <h6 class="text-muted mb-3">Register Existing Patient</h6>
+                    <form method="POST">
+                        {{ walk_in_form.hidden_tag() }}
+                        <input type="hidden" name="register_walk_in" value="1">
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ walk_in_form.patient_id.label(class="form-label") }}
+                                {{ walk_in_form.patient_id(class="form-select") }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ walk_in_form.priority.label(class="form-label") }}
+                                {{ walk_in_form.priority(class="form-select") }}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ walk_in_form.notes.label(class="form-label") }}
+                            {{ walk_in_form.notes(class="form-control", rows="3", placeholder="Reason for visit, symptoms, etc...") }}
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('walk_in_patients') }}" class="btn btn-secondary">Cancel</a>
+                            {{ walk_in_form.submit(class="btn btn-primary") }}
+                        </div>
+                    </form>
+                </div>
+                
+                <hr class="my-4">
+                
+                <!-- Quick New Patient Registration -->
+                <div>
+                    <h6 class="text-muted mb-3">Add New Patient & Register</h6>
+                    <form method="POST">
+                        {{ quick_patient_form.hidden_tag() }}
+                        <input type="hidden" name="add_patient" value="1">
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ quick_patient_form.phone_number.label(class="form-label") }}
+                                {{ quick_patient_form.phone_number(class="form-control", placeholder="+254700000000") }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ quick_patient_form.name.label(class="form-label") }}
+                                {{ quick_patient_form.name(class="form-control", placeholder="Full Name") }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                {{ quick_patient_form.age.label(class="form-label") }}
+                                {{ quick_patient_form.age(class="form-control", placeholder="Age") }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                {{ quick_patient_form.gender.label(class="form-label") }}
+                                {{ quick_patient_form.gender(class="form-select") }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                {{ quick_patient_form.language.label(class="form-label") }}
+                                {{ quick_patient_form.language(class="form-select") }}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ quick_patient_form.location.label(class="form-label") }}
+                            {{ quick_patient_form.location(class="form-control", placeholder="Location/Address") }}
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('walk_in_patients') }}" class="btn btn-secondary">Cancel</a>
+                            {{ quick_patient_form.submit(class="btn btn-success") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

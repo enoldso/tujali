@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Users - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">
+            <i data-feather="users" class="me-2"></i>
+            User Management
+        </h1>
+        <a href="{{ url_for('create_user') }}" class="btn btn-primary">
+            <i data-feather="user-plus" class="me-1"></i>
+            Create New User
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">System Users</h5>
+        </div>
+        <div class="card-body">
+            {% if users %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Department</th>
+                                <th>Permissions</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>
+                                    <strong>{{ user.username }}</strong>
+                                    {% if user.role == 'super_admin' %}
+                                        <span class="badge bg-danger ms-1">SUPER ADMIN</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.email }}</td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ user.role }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ user.department or 'None' }}</span>
+                                </td>
+                                <td>
+                                    {% if user.permissions %}
+                                        {% for perm in user.permissions %}
+                                            <span class="badge bg-light text-dark me-1">{{ perm }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted">None</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</small>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" title="Edit User">
+                                            <i data-feather="edit-2"></i>
+                                        </button>
+                                        {% if user.username != 'admin' %}
+                                        <button class="btn btn-outline-danger" title="Delete User">
+                                            <i data-feather="trash-2"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-4">
+                    <i data-feather="users" class="text-muted mb-3" style="width: 48px; height: 48px;"></i>
+                    <p class="text-muted">No users found</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h4>{{ users|length }}</h4>
+                    <p class="mb-0">Total Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h4>{{ users|selectattr('role', 'equalto', 'provider')|list|length }}</h4>
+                    <p class="mb-0">Healthcare Providers</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h4>{{ users|selectattr('role', 'equalto', 'super_admin')|list|length }}</h4>
+                    <p class="mb-0">Super Admins</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

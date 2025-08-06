@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Prescription - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i data-feather="plus-circle"></i> Create Prescription</h2>
+            <a href="{{ url_for('prescriptions') }}" class="btn btn-secondary">
+                <i data-feather="arrow-left"></i> Back to Prescriptions
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.patient_id.label(class="form-label") }}
+                                {{ form.patient_id(class="form-select") }}
+                                {% for error in form.patient_id.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.appointment_id.label(class="form-label") }}
+                                {{ form.appointment_id(class="form-select") }}
+                                {% for error in form.appointment_id.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.medication_name.label(class="form-label") }}
+                                {{ form.medication_name(class="form-control", placeholder="e.g., Paracetamol") }}
+                                {% for error in form.medication_name.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.dosage.label(class="form-label") }}
+                                {{ form.dosage(class="form-control", placeholder="e.g., 500mg") }}
+                                {% for error in form.dosage.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.frequency.label(class="form-label") }}
+                                {{ form.frequency(class="form-control", placeholder="e.g., Twice daily") }}
+                                {% for error in form.frequency.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.duration.label(class="form-label") }}
+                                {{ form.duration(class="form-control", placeholder="e.g., 7 days") }}
+                                {% for error in form.duration.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.instructions.label(class="form-label") }}
+                        {{ form.instructions(class="form-control", rows="3", placeholder="Special instructions for the patient...") }}
+                        {% for error in form.instructions.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.delivery_method.label(class="form-label") }}
+                                {{ form.delivery_method(class="form-select") }}
+                                {% for error in form.delivery_method.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                                <div class="form-text">
+                                    <small>
+                                        <strong>Delivery Fees:</strong><br>
+                                        • Physical Pickup: Free<br>
+                                        • Bike Delivery: KSh 100<br>
+                                        • Drone Delivery: KSh 200
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.delivery_address.label(class="form-label") }}
+                                {{ form.delivery_address(class="form-control", rows="3", placeholder="Required for bike/drone delivery...") }}
+                                {% for error in form.delivery_address.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('prescriptions') }}" class="btn btn-secondary me-md-2">Cancel</a>
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Lab Tests - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i data-feather="search"></i> Lab Tests</h2>
+            <a href="{{ url_for('order_lab_test') }}" class="btn btn-primary">
+                <i data-feather="plus"></i> Order Lab Test
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                {% if lab_tests %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Patient</th>
+                                <th>Test Name</th>
+                                <th>Type</th>
+                                <th>Cost</th>
+                                <th>Status</th>
+                                <th>Ordered</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for test in lab_tests %}
+                            <tr>
+                                <td>
+                                    <strong>{{ test.patient.name }}</strong><br>
+                                    <small class="text-muted">{{ test.patient.phone_number }}</small>
+                                </td>
+                                <td>{{ test.test_name }}</td>
+                                <td>
+                                    <span class="badge {% if test.test_type == 'blood' %}bg-danger{% elif test.test_type == 'urine' %}bg-warning{% elif test.test_type == 'imaging' %}bg-info{% else %}bg-secondary{% endif %}">
+                                        {{ test.test_type.title() }}
+                                    </span>
+                                </td>
+                                <td>KSh {{ test.cost }}</td>
+                                <td>
+                                    <span class="badge {% if test.status == 'ordered' %}bg-warning{% elif test.status == 'sample_collected' %}bg-primary{% elif test.status == 'in_progress' %}bg-info{% elif test.status == 'completed' %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {{ test.status.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td>{{ test.ordered_at.strftime('%d %b %Y') }}</td>
+                                <td>
+                                    {% if test.status == 'completed' %}
+                                    <a href="{{ url_for('lab_test_results', test_id=test.id) }}" class="btn btn-sm btn-info">View Results</a>
+                                    {% else %}
+                                    <a href="{{ url_for('lab_test_results', test_id=test.id) }}" class="btn btn-sm btn-primary">Record Results</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i data-feather="search" class="text-muted mb-3" style="width: 48px; height: 48px;"></i>
+                    <h5 class="text-muted">No lab tests ordered</h5>
+                    <p class="text-muted">Order your first lab test to get started.</p>
+                    <a href="{{ url_for('order_lab_test') }}" class="btn btn-primary">Order Lab Test</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

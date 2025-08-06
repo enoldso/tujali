@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+
+{% block title %}AI Health Tips - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3">
+                <i data-feather="zap" class="me-2 text-warning"></i>
+                AI-Powered Personalized Health Tips
+            </h1>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card mb-4 border-0 shadow-sm">
+            <div class="card-header bg-primary bg-opacity-75">
+                <h5 class="card-title mb-0">Generate Health Tips</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.patient_id.label(class="form-label") }}
+                        {{ form.patient_id(class="form-select") }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.custom_prompt.label(class="form-label") }}
+                        {{ form.custom_prompt(class="form-control", rows=3, placeholder="Add any additional context or specific concerns") }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.language.label(class="form-label") }}
+                        {{ form.language(class="form-select") }}
+                    </div>
+                    
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer bg-dark text-muted">
+                <small>
+                    <i data-feather="info" class="feather-sm me-1"></i>
+                    Tips are generated based on patient data, reported symptoms, and regional health information.
+                </small>
+            </div>
+        </div>
+        
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-dark bg-opacity-75">
+                <h5 class="card-title mb-0">How It Works</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item bg-transparent">
+                        <i data-feather="user" class="text-info me-2"></i>
+                        <strong>Patient Data Analysis</strong>
+                        <p class="small text-muted mt-1">
+                            Uses age, gender, location, and medical history to personalize recommendations.
+                        </p>
+                    </li>
+                    <li class="list-group-item bg-transparent">
+                        <i data-feather="activity" class="text-info me-2"></i>
+                        <strong>Symptom-Based Advice</strong>
+                        <p class="small text-muted mt-1">
+                            Analyzes reported symptoms to provide targeted health management tips.
+                        </p>
+                    </li>
+                    <li class="list-group-item bg-transparent">
+                        <i data-feather="map-pin" class="text-info me-2"></i>
+                        <strong>Regional Health Context</strong>
+                        <p class="small text-muted mt-1">
+                            Considers local health challenges and available resources.
+                        </p>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-8">
+        {% if generated_tips %}
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-success bg-opacity-75 d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i data-feather="award" class="me-2"></i>
+                        Health Tips for {{ selected_patient.name }}
+                    </h5>
+                    {% if selected_patient %}
+                    <form action="{{ url_for('share_health_tips', patient_id=selected_patient.id) }}" method="POST">
+                        <button type="submit" class="btn btn-sm btn-outline-light">
+                            <i data-feather="share-2" class="me-1 feather-sm"></i>
+                            Share with Patient
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if generated_tips.health_tips %}
+                        <div class="mb-4">
+                            <h5 class="text-primary">Personalized Health Tips</h5>
+                            <div class="list-group list-group-flush">
+                                {% for tip in generated_tips.health_tips %}
+                                    <div class="list-group-item bg-transparent">
+                                        <h6 class="text-info">{{ tip.title }}</h6>
+                                        <p>{{ tip.description }}</p>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    {% if generated_tips.symptom_management %}
+                        <div class="mb-4">
+                            <h5 class="text-primary">Symptom Management</h5>
+                            <div class="list-group list-group-flush">
+                                {% for item in generated_tips.symptom_management %}
+                                    <div class="list-group-item bg-transparent">
+                                        <h6 class="text-info">{{ item.symptom }}</h6>
+                                        <p>{{ item.advice }}</p>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    {% if generated_tips.follow_up %}
+                        <div class="alert alert-info">
+                            <h6 class="alert-heading">Follow-up Recommendation</h6>
+                            <p class="mb-0">{{ generated_tips.follow_up }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-dark text-muted d-flex align-items-center">
+                    <small>
+                        <i data-feather="clock" class="feather-sm me-1"></i>
+                        Generated now
+                    </small>
+                </div>
+            </div>
+        {% else %}
+            <div class="card border-0 shadow-sm mb-4 text-center">
+                <div class="card-body py-5">
+                    <div class="mb-3">
+                        <i data-feather="zap" style="width: 64px; height: 64px;" class="text-muted"></i>
+                    </div>
+                    <h5>Generate Personalized Health Tips</h5>
+                    <p class="text-muted">
+                        Select a patient and language to generate AI-powered health recommendations based on their data and symptoms.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-dark bg-opacity-75">
+                    <h5 class="card-title mb-0">Benefits of AI-Powered Health Tips</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="d-flex mb-3">
+                                <div class="flex-shrink-0">
+                                    <i data-feather="target" class="text-primary me-3"></i>
+                                </div>
+                                <div>
+                                    <h6>Personalized Guidance</h6>
+                                    <p class="text-muted small">
+                                        Tailored advice based on individual health profiles and needs.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex mb-3">
+                                <div class="flex-shrink-0">
+                                    <i data-feather="globe" class="text-primary me-3"></i>
+                                </div>
+                                <div>
+                                    <h6>Culturally Relevant</h6>
+                                    <p class="text-muted small">
+                                        Recommendations that consider local contexts and practices.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex mb-3">
+                                <div class="flex-shrink-0">
+                                    <i data-feather="trending-up" class="text-primary me-3"></i>
+                                </div>
+                                <div>
+                                    <h6>Proactive Care</h6>
+                                    <p class="text-muted small">
+                                        Preventive advice to address health issues before they escalate.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex mb-3">
+                                <div class="flex-shrink-0">
+                                    <i data-feather="message-circle" class="text-primary me-3"></i>
+                                </div>
+                                <div>
+                                    <h6>Easy Communication</h6>
+                                    <p class="text-muted small">
+                                        Simplified health information that can be shared via SMS.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize loading animation
+        const loadingManager = new LoadingAnimationManager();
+        
+        // Form submit loading
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function() {
+                loadingManager.showLoading('akan', 'Generating personalized health recommendations...');
+            });
+        }
+    });
+</script>
+{% endblock %}

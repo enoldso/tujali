@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+
+{% block title %}Health Information - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2 class="mb-4">
+            <i data-feather="info"></i> Health Information
+            <small class="text-muted">Manage health information content for USSD users</small>
+        </h2>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Health Info List -->
+    <div class="col-md-8">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Available Health Information</h5>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="filterAll">All</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="filterEnglish">English</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="filterSwahili">Swahili</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="healthInfoTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Content</th>
+                                <th>Language</th>
+                                <th>Date Added</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if info_list %}
+                                {% for info in info_list %}
+                                <tr data-language="{{ info.language }}">
+                                    <td>{{ info.id }}</td>
+                                    <td>{{ info.title }}</td>
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 300px;">
+                                            {{ info.content }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if info.language == 'en' %}
+                                            <span class="badge bg-primary">English</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Swahili</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ info.created_at.strftime('%d %b %Y') }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4">
+                                        <i data-feather="info" class="mb-2 text-muted"></i>
+                                        <p class="mb-0 text-muted">No health information added yet</p>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Health Info Form -->
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="card-title">Add New Health Information</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('health_info') }}">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        {{ form.title(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="content" class="form-label">Content</label>
+                        {{ form.content(class="form-control", rows=5) }}
+                        <small class="text-muted">Keep content concise for USSD display (max 160 characters per screen)</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="language" class="form-label">Language</label>
+                        {{ form.language(class="form-select") }}
+                    </div>
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Health Information Categories -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="card-title">Categories</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item border-0 px-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">COVID-19</h6>
+                                <small class="text-muted">Prevention and symptoms</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">
+                                {{ info_list|selectattr('title', 'equalto', 'COVID-19')|list|length }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="list-group-item border-0 px-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Maternal Health</h6>
+                                <small class="text-muted">Pregnancy and childcare</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">
+                                {{ info_list|selectattr('title', 'equalto', 'Maternal Health')|list|length }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="list-group-item border-0 px-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Chronic Diseases</h6>
+                                <small class="text-muted">Diabetes, hypertension, etc.</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">
+                                {{ info_list|selectattr('title', 'equalto', 'Chronic Diseases')|list|length }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="list-group-item border-0 px-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">First Aid</h6>
+                                <small class="text-muted">Emergency treatment</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">
+                                {{ info_list|selectattr('title', 'equalto', 'First Aid')|list|length }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Health Info Usage Statistics -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="card-title">Information Access Statistics</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="healthInfoChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Filter functionality
+    const filterAll = document.getElementById('filterAll');
+    const filterEnglish = document.getElementById('filterEnglish');
+    const filterSwahili = document.getElementById('filterSwahili');
+    const rows = document.querySelectorAll('#healthInfoTable tbody tr');
+    
+    filterAll.addEventListener('click', function() {
+        rows.forEach(row => {
+            row.style.display = '';
+        });
+        filterAll.classList.add('active');
+        filterEnglish.classList.remove('active');
+        filterSwahili.classList.remove('active');
+    });
+    
+    filterEnglish.addEventListener('click', function() {
+        rows.forEach(row => {
+            if (row.dataset.language === 'en') {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        filterAll.classList.remove('active');
+        filterEnglish.classList.add('active');
+        filterSwahili.classList.remove('active');
+    });
+    
+    filterSwahili.addEventListener('click', function() {
+        rows.forEach(row => {
+            if (row.dataset.language === 'sw') {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        filterAll.classList.remove('active');
+        filterEnglish.classList.remove('active');
+        filterSwahili.classList.add('active');
+    });
+    
+    // Health info access statistics chart
+    const chartElement = document.getElementById('healthInfoChart');
+    
+    // Only create chart if Chart is defined and element exists
+    if (typeof Chart !== 'undefined' && chartElement) {
+        const ctx = chartElement.getContext('2d');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [
+                        {
+                            label: 'COVID-19',
+                            data: [65, 78, 52, 45, 38, 42],
+                            borderColor: '#6610f2',
+                            tension: 0.1,
+                            fill: false
+                        },
+                        {
+                            label: 'Maternal Health',
+                            data: [28, 32, 40, 45, 52, 58],
+                            borderColor: '#e83e8c',
+                            tension: 0.1,
+                            fill: false
+                        },
+                        {
+                            label: 'Chronic Diseases',
+                            data: [42, 45, 48, 50, 55, 60],
+                            borderColor: '#fd7e14',
+                            tension: 0.1,
+                            fill: false
+                        },
+                        {
+                            label: 'First Aid',
+                            data: [25, 28, 30, 35, 32, 38],
+                            borderColor: '#20c997',
+                            tension: 0.1,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of USSD Accesses'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    } else {
+        console.log("Chart.js not loaded or element not found");
+    }
+    
+    // Set default filter to All
+    filterAll.click();
+});
+</script>
+{% endblock %}

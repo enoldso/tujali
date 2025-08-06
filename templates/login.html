@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <h1 class="h3 mb-3 fw-normal">Tujali <span class="text-primary">Telehealth</span></h1>
+                    <p class="text-muted">Healthcare Provider Login</p>
+                </div>
+                
+                <form method="POST" action="{{ url_for('login') }}">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="form-floating mb-3">
+                        {{ form.username(class="form-control", id="floatingUsername", placeholder="Username") }}
+                        <label for="floatingUsername">Username</label>
+                        {% if form.username.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.username.errors %}
+                            <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-floating mb-3">
+                        {{ form.password(class="form-control", id="floatingPassword", placeholder="Password") }}
+                        <label for="floatingPassword">Password</label>
+                        {% if form.password.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.password.errors %}
+                            <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        {{ form.submit(class="btn btn-primary py-2") }}
+                    </div>
+                </form>
+                
+                <div class="text-center mt-3">
+                    <p class="text-muted mb-0">
+                        New healthcare provider? 
+                        <a href="{{ url_for('register') }}" class="text-decoration-none">Register here</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-body p-4">
+                <h4 class="card-title">About Tujali Telehealth</h4>
+                <p class="card-text">
+                    Tujali Telehealth connects rural populations in Kenya to healthcare providers without requiring smartphones or internet access. Our USSD-based platform allows anyone with a basic mobile phone to access quality healthcare services.
+                </p>
+                <div class="row text-center mt-4">
+                    <div class="col-md-4">
+                        <div class="d-flex flex-column align-items-center">
+                            <i data-feather="users" class="text-primary mb-2" style="width: 32px; height: 32px;"></i>
+                            <div class="fw-bold">Accessible</div>
+                            <div class="small text-muted">Works on any phone</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex flex-column align-items-center">
+                            <i data-feather="shield" class="text-primary mb-2" style="width: 32px; height: 32px;"></i>
+                            <div class="fw-bold">Secure</div>
+                            <div class="small text-muted">Private connections</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex flex-column align-items-center">
+                            <i data-feather="heart" class="text-primary mb-2" style="width: 32px; height: 32px;"></i>
+                            <div class="fw-bold">Lifesaving</div>
+                            <div class="small text-muted">Connecting rural areas</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

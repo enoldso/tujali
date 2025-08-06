@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block title %}Billing - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i data-feather="dollar-sign"></i> Billing Management</h2>
+            <a href="{{ url_for('create_bill') }}" class="btn btn-primary">
+                <i data-feather="plus"></i> Create Bill
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Billing Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-muted">Total Billed</h6>
+                        <h2 class="card-title mb-0">KSh {{ "%.2f"|format(total_billed) }}</h2>
+                    </div>
+                    <div class="icon-shape bg-primary text-white rounded-circle shadow-sm d-flex align-items-center justify-content-center">
+                        <i data-feather="dollar-sign"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-muted">Pending Bills</h6>
+                        <h2 class="card-title mb-0">{{ pending_bills|length }}</h2>
+                    </div>
+                    <div class="icon-shape bg-warning text-white rounded-circle shadow-sm d-flex align-items-center justify-content-center">
+                        <i data-feather="clock"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-muted">Paid Bills</h6>
+                        <h2 class="card-title mb-0">{{ paid_bills|length }}</h2>
+                    </div>
+                    <div class="icon-shape bg-success text-white rounded-circle shadow-sm d-flex align-items-center justify-content-center">
+                        <i data-feather="check-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-muted">Actions</h6>
+                        <p class="mb-2"><a href="{{ url_for('record_payment') }}" class="btn btn-sm btn-success">Record Payment</a></p>
+                    </div>
+                    <div class="icon-shape bg-info text-white rounded-circle shadow-sm d-flex align-items-center justify-content-center">
+                        <i data-feather="credit-card"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bills List -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="card-title">All Bills</h5>
+            </div>
+            <div class="card-body">
+                {% if bills %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Bill #</th>
+                                <th>Patient</th>
+                                <th>Items</th>
+                                <th>Total Amount</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for bill in bills %}
+                            <tr>
+                                <td><strong>#{{ bill.id }}</strong></td>
+                                <td>
+                                    <strong>{{ bill.patient.name }}</strong><br>
+                                    <small class="text-muted">{{ bill.patient.phone_number }}</small>
+                                </td>
+                                <td>
+                                    {% for item in bill.items %}
+                                    <small class="d-block">{{ item.description }} ({{ item.quantity }}x)</small>
+                                    {% endfor %}
+                                    {% if not bill.items %}
+                                    <small class="text-muted">No items</small>
+                                    {% endif %}
+                                </td>
+                                <td><strong>KSh {{ "%.2f"|format(bill.total_amount) }}</strong></td>
+                                <td>
+                                    <span class="badge {% if bill.status == 'pending' %}bg-warning{% elif bill.status == 'paid' %}bg-success{% elif bill.status == 'partially_paid' %}bg-info{% else %}bg-secondary{% endif %}">
+                                        {{ bill.status.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td>{{ bill.created_at.strftime('%d %b %Y') }}</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        {% if bill.status != 'paid' %}
+                                        <a href="{{ url_for('edit_bill', bill_id=bill.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                        {% endif %}
+                                        {% if bill.total_amount > 0 and bill.status != 'paid' %}
+                                        <a href="{{ url_for('record_payment') }}" class="btn btn-sm btn-success">Record Payment</a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i data-feather="dollar-sign" class="text-muted mb-3" style="width: 48px; height: 48px;"></i>
+                    <h5 class="text-muted">No bills created</h5>
+                    <p class="text-muted">Create your first bill to start billing patients.</p>
+                    <a href="{{ url_for('create_bill') }}" class="btn btn-primary">Create Bill</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
