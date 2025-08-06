@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+
+{% block title %}Walk-In Patients - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i data-feather="users"></i> Walk-In Patients</h2>
+        <a href="{{ url_for('register_walk_in') }}" class="btn btn-primary">
+            <i data-feather="user-plus"></i> Register New Walk-In
+        </a>
+    </div>
+
+    <!-- Waiting Patients -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-warning bg-opacity-10">
+            <h5 class="mb-0">
+                <i data-feather="clock"></i> Waiting Patients
+                <span class="badge bg-warning text-dark ms-2">{{ waiting_patients|length }}</span>
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if waiting_patients %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Patient</th>
+                            <th>Arrival Time</th>
+                            <th>Wait Time</th>
+                            <th>Priority</th>
+                            <th>Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for patient in waiting_patients %}
+                        <tr>
+                            <td>{{ patient.patient.name }}</td>
+                            <td>{{ patient.arrival_time.strftime('%H:%M') }}</td>
+                            <td>{{ patient.wait_time }} min</td>
+                            <td>
+                                <span class="badge {% if patient.priority == 'urgent' %}bg-danger{% elif patient.priority == 'low' %}bg-secondary{% else %}bg-primary{% endif %}">
+                                    {{ patient.priority|title }}
+                                </span>
+                            </td>
+                            <td>{{ patient.notes|default('No notes', true) }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="#" class="btn btn-success" 
+                                       onclick="updateWalkInStatus('{{ patient.id }}', 'in_consultation')">
+                                        <i data-feather="user-check"></i> Start
+                                    </a>
+                                    <a href="#" class="btn btn-outline-danger" 
+                                       onclick="updateWalkInStatus('{{ patient.id }}', 'cancelled')">
+                                        <i data-feather="x"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                No patients currently waiting
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- In Consultation -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-info bg-opacity-10">
+            <h5 class="mb-0">
+                <i data-feather="activity"></i> In Consultation
+                <span class="badge bg-info ms-2">{{ in_consultation|length }}</span>
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if in_consultation %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Patient</th>
+                            <th>Start Time</th>
+                            <th>Duration</th>
+                            <th>Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for patient in in_consultation %}
+                        <tr>
+                            <td>{{ patient.patient.name }}</td>
+                            <td>{{ patient.consultation_start.strftime('%H:%M') }}</td>
+                            <td>{{ ((now() - patient.consultation_start).total_seconds() // 60)|int }} min</td>
+                            <td>{{ patient.notes|default('No notes', true) }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="#" class="btn btn-success" 
+                                       onclick="updateWalkInStatus('{{ patient.id }}', 'completed')">
+                                        <i data-feather="check"></i> Complete
+                                    </a>
+                                    <a href="{{ url_for('patient_detail', patient_id=patient.patient_id) }}" 
+                                       class="btn btn-outline-primary">
+                                        <i data-feather="user"></i> View
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                No patients in consultation
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Completed Today -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i data-feather="check-circle"></i> Completed Today
+                <span class="badge bg-light text-dark ms-2">{{ completed_today|length }}</span>
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if completed_today %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Patient</th>
+                            <th>Arrival Time</th>
+                            <th>Completed</th>
+                            <th>Total Time</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for patient in completed_today %}
+                        <tr>
+                            <td>{{ patient.patient.name }}</td>
+                            <td>{{ patient.arrival_time.strftime('%H:%M') }}</td>
+                            <td>{{ patient.consultation_end.strftime('%H:%M') }}</td>
+                            <td>{{ ((patient.consultation_end - patient.arrival_time).total_seconds() // 60)|int }} min</td>
+                            <td>{{ patient.notes|default('No notes', true) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                No completed consultations today
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Update Status Modal -->
+<div class="modal fade" id="updateStatusModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="statusForm" method="POST">
+                    <input type="hidden" name="walkin_id" id="walkinId">
+                    <input type="hidden" name="status" id="statusValue">
+                    <div class="mb-3">
+                        <label for="statusNotes" class="form-label">Notes (optional)</label>
+                        <textarea class="form-control" id="statusNotes" name="notes" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitStatusForm()">Update Status</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Update walk-in status
+function updateWalkInStatus(walkinId, status) {
+    document.getElementById('walkinId').value = walkinId;
+    document.getElementById('statusValue').value = status;
+    
+    const modal = new bootstrap.Modal(document.getElementById('updateStatusModal'));
+    modal.show();
+}
+
+// Submit status form
+function submitStatusForm() {
+    document.getElementById('statusForm').submit();
+}
+
+// Initialize tooltips
+var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
+});
+
+// Initialize Feather icons
+feather.replace();
+</script>
+{% endblock %}

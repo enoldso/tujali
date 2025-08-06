@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block title %}User Journey - {{ patient.name }} - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mt-4">Patient Journey</h1>
+        <a href="{{ url_for('user_journey_list') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
+    
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('user_journey_list') }}">User Journeys</a></li>
+        <li class="breadcrumb-item active">{{ patient.name }}</li>
+    </ol>
+
+    <!-- Patient Summary Card -->
+    <div class="row">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Patient</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ patient.name }}</div>
+                            <div class="text-muted">ID: {{ patient.id }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-user fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Total Interactions</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ journey_data.statistics.total_interactions }}</div>
+                            <div class="text-muted">
+                                {% if journey_data.timeline|length > 0 %}
+                                    {{ journey_data.timeline[-1].date }} at {{ journey_data.timeline[-1].time }}
+                                {% else %}
+                                    Never
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exchange-alt fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Journey Duration</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ journey_data.duration_days }} days</div>
+                            <div class="text-muted">Since {{ journey_data.first_interaction|default('N/A', true) }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-calendar-alt fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Status</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {% if journey_data.is_active %}
+                                    <span class="text-success">Active</span>
+                                {% else %}
+                                    <span class="text-muted">Inactive</span>
+                                {% endif %}
+                            </div>
+                            <div class="text-muted">
+                                {{ journey_data.interaction_types|join(', ') }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Journey Timeline -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Journey Timeline</h6>
+                </div>
+                <div class="card-body">
+                    <div class="timeline">
+                        {% for interaction in journey_data.timeline %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker">
+                                {% if interaction.type == 'appointment' %}
+                                    <i class="fas fa-calendar-check text-primary"></i>
+                                {% elif interaction.type == 'message' %}
+                                    <i class="fas fa-comment-dots text-info"></i>
+                                {% elif interaction.type == 'symptom' %}
+                                    <i class="fas fa-notes-medical text-danger"></i>
+                                {% elif interaction.type == 'health_tip' %}
+                                    <i class="fas fa-lightbulb text-warning"></i>
+                                {% else %}
+                                    <i class="fas fa-exchange-alt text-secondary"></i>
+                                {% endif %}
+                            </div>
+                            <div class="timeline-content">
+                                <h6 class="mb-1">
+                                    {% if interaction.type == 'appointment' %}
+                                        Appointment
+                                    {% elif interaction.type == 'message' %}
+                                        Message
+                                    {% elif interaction.type == 'symptom' %}
+                                        Symptom Reported
+                                    {% elif interaction.type == 'health_tip' %}
+                                        Health Tip
+                                    {% else %}
+                                        Interaction
+                                    {% endif %}
+                                </h6>
+                                <p class="text-muted small mb-1">
+                                    <i class="far fa-calendar me-1"></i> {{ interaction.date }} at {{ interaction.time }}
+                                </p>
+                                <p class="mb-1">{{ interaction.description }}</p>
+                                {% if interaction.metadata %}
+                                <div class="small text-muted">
+                                    {% for key, value in interaction.metadata.items() %}
+                                        <div><strong>{{ key|title }}:</strong> {{ value }}</div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-inbox fa-3x mb-2"></i>
+                            <p class="mb-0">No interactions found for this patient</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="col-lg-4">
+            <!-- Interaction Types -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Interaction Types</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-pie pt-4 pb-2">
+                        <canvas id="interactionChart"></canvas>
+                    </div>
+                    <div class="mt-4 text-center small">
+                        {% for type, count in journey_data.statistics.interaction_by_type.items() %}
+                        <span class="me-3">
+                            <i class="fas fa-circle" style="color: {{ loop.cycle('#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b') }}"></i>
+                            {{ type|title }} ({{ count }})
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activities -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <a href="#" class="btn btn-primary btn-block mb-2">
+                        <i class="fas fa-calendar-plus me-2"></i> Schedule Follow-up
+                    </a>
+                    <a href="#" class="btn btn-info btn-block mb-2">
+                        <i class="fas fa-envelope me-2"></i> Send Message
+                    </a>
+                    <a href="#" class="btn btn-success btn-block mb-2">
+                        <i class="fas fa-file-medical me-2"></i> Add Note
+                    </a>
+                    <a href="#" class="btn btn-warning btn-block">
+                        <i class="fas fa-flag me-2"></i> Flag for Review
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Page level plugins -->
+<script src="{{ url_for('static', filename='vendor/chart.js/Chart.min.js') }}"></script>
+
+<script>
+// Set new default font family and font color to mimic Bootstrap's default styling
+Chart.defaults.global.defaultFontFamily = 'Nunito', '-apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
+Chart.defaults.global.defaultFontColor = '#858796';
+
+// Pie Chart Example
+var ctx = document.getElementById("interactionChart");
+if (ctx) {
+    var interactionChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: [
+                {% for type, count in journey_data.interaction_counts.items() %}
+                    '{{ type|title }}'{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ],
+            datasets: [{
+                data: [
+                    {% for count in journey_data.interaction_counts.values() %}
+                        {{ count }}{% if not loop.last %},{% endif %}
+                    {% endfor %}
+                ],
+                backgroundColor: [
+                    '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#fd7e14'
+                ],
+                hoverBackgroundColor: [
+                    '#2e59d9', '#17a673', '#2c9faf', '#dda20a', '#be2617', '#5a32a3', '#d56e0a'
+                ],
+                hoverBorderColor: "rgba(234, 236, 244, 1)",
+            }],
+        },
+        options: {
+            maintainAspectRatio: false,
+            tooltips: {
+                backgroundColor: "rgb(255,255,255)",
+                bodyFontColor: "#858796",
+                borderColor: '#dddfeb',
+                borderWidth: 1,
+                xPadding: 15,
+                yPadding: 15,
+                displayColors: false,
+                caretPadding: 10,
+            },
+            legend: {
+                display: false
+            },
+            cutoutPercentage: 80,
+        },
+    });
+}
+
+// Add timeline animations
+$(document).ready(function() {
+    $('.timeline-item').each(function(i) {
+        $(this).delay(i * 200).fadeIn(400);
+    });
+});
+</script>
+
+<!-- Custom styles for the timeline -->
+<style>
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+    margin: 0 0 0 1.5rem;
+    border-left: 4px solid #e9ecef;
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 2rem;
+    padding-left: 1.5rem;
+    display: none;
+}
+
+.timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -1.5rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+}
+
+.timeline-marker i {
+    font-size: 1rem;
+}
+
+.timeline-content {
+    background: #fff;
+    border-radius: 0.35rem;
+    padding: 1rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.timeline-content h6 {
+    color: #4e73df;
+    margin-bottom: 0.25rem;
+}
+
+.timeline-content p:last-child {
+    margin-bottom: 0;
+}
+</style>
+{% endblock %}

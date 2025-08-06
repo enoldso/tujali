@@ -11,8 +11,9 @@ from forms import (LoginForm, RegistrationForm, MessageForm, HealthInfoForm, Hea
 from ussd_handler import ussd_callback
 import utils
 from utils import requires_permission, requires_department, get_navigation_items
-import ai_service
-import mock_ai_service  # Import the mock AI service
+# Use mock AI service instead of the real one
+import mock_ai_service as ai_service  # Use mock AI service instead of the real one
+# import ai_service  # Commented out to use mock service
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -21,6 +22,10 @@ logger = logging.getLogger(__name__)
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "tujali-dev-secret-key")
+
+# Import and register custom template filters
+from filters import register_filters
+register_filters(app)
 
 # Add template filters
 from datetime import datetime
