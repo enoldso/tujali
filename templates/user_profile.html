@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - Tujali Telehealth{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">My Profile</h1>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">Account</div>
+                <div class="card-body">
+                    <p><strong>Username:</strong> {{ user.username }}</p>
+                    <p><strong>Email:</strong> {{ user.email }}</p>
+                    <p><strong>Role:</strong> {{ user_role|replace('_', ' ')|title }}</p>
+                    <p class="mb-0"><strong>Department:</strong> {{ user_department|title }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">Permissions</div>
+                <div class="card-body">
+                    {% for perm in user_permissions %}
+                    <span class="badge bg-secondary me-1 mb-1">{{ perm }}</span>
+                    {% else %}
+                    <p class="text-muted mb-0">No additional permissions.</p>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card mb-4">
+                <div class="card-header">Accessible areas</div>
+                <div class="card-body">
+                    {% for route in accessible_routes %}
+                    <span class="badge bg-light text-dark border me-1 mb-1">{{ route|replace('_', ' ') }}</span>
+                    {% else %}
+                    <p class="text-muted mb-0">None.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

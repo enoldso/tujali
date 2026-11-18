@@ -87,7 +87,7 @@
                         <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
                             <div>
                                 <strong>RX #{{ prescription.id }}</strong>
-                                <small class="text-muted d-block">Patient: {{ prescription.patient().name if prescription.patient() else 'Unknown' }}</small>
+                                <small class="text-muted d-block">Patient: {{ prescription.patient.name if prescription.patient else 'Unknown' }}</small>
                                 <small class="text-muted d-block">
                                     {% if prescription.created_at %}
                                         {% if prescription.created_at.strftime is defined %}

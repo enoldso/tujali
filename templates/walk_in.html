@@ -176,6 +176,7 @@
             </div>
             <div class="modal-body">
                 <form id="statusForm" method="POST">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="walkin_id" id="walkinId">
                     <input type="hidden" name="status" id="statusValue">
                     <div class="mb-3">

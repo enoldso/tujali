@@ -270,6 +270,7 @@
                                         <td>
                                             {% if payment.status == 'pending' %}
                                             <form method="POST" action="{{ url_for('update_payment_status') }}" class="d-inline">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                 <input type="hidden" name="payment_id" value="{{ payment.id }}">
                                                 <button type="submit" name="status" value="completed" class="btn btn-sm btn-success">
                                                     <i data-feather="check"></i> Complete

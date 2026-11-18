@@ -102,7 +102,7 @@
                                     {% for test in collection_queue %}
                                     <tr>
                                         <td>
-                                            <strong>{{ test.patient().name if test.patient() else 'Patient #' + test.patient_id|string }}</strong>
+                                            <strong>{{ test.patient.name if test.patient else 'Patient #' + test.patient_id|string }}</strong>
                                             <small class="text-muted d-block">ID: {{ test.patient_id }}</small>
                                         </td>
                                         <td>{{ test.test_name }}</td>

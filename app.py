@@ -1,82 +1,249 @@
 import os
 import logging
-from flask import Flask, render_template, redirect, url_for, request, flash, session, jsonify
+from datetime import datetime
+from urllib.parse import urlparse
+
+import click
+from dotenv import load_dotenv
+from flask import (Flask, render_template, redirect, url_for, request, flash, session, jsonify,
+                   abort, send_from_directory)
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
-from models import (User, Provider, Patient, Appointment, Message, HealthInfo, UserInteraction, Payment, 
-                   Prescription, WalkInPatient, LabTest, LabResult, Bill, db, init_db)
+from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect
+from sqlalchemy import text
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+load_dotenv()
+
+from models import (User, Provider, Patient, Appointment, Message, HealthInfo, UserInteraction, Payment,
+                    Prescription, WalkInPatient, LabTest, LabResult, Bill, db)
 from forms import (LoginForm, RegistrationForm, MessageForm, HealthInfoForm, HealthTipsForm, HealthEducationForm,
-                  PrescriptionForm, WalkInForm, QuickPatientForm, LabTestForm, LabResultForm, 
-                  BillItemForm, PaymentRecordForm, UserManagementForm, DepartmentForm)
+                   PrescriptionForm, WalkInForm, QuickPatientForm, LabTestForm, LabResultForm,
+                   BillItemForm, PaymentRecordForm, UserManagementForm, DepartmentForm)
 from ussd_handler import ussd_callback
 import utils
 from utils import requires_permission, requires_department, get_navigation_items
-# Use mock AI service instead of the real one
-import mock_ai_service as ai_service  # Use mock AI service instead of the real one
-# import ai_service  # Commented out to use mock service
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
+
+def _env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+# ---------------------------------------------------------------------------
+# Configuration (everything comes from environment variables; see .env.example)
+# ---------------------------------------------------------------------------
+APP_ENV = os.environ.get('APP_ENV', 'development').lower()
+IS_PRODUCTION = APP_ENV == 'production'
+
+logging.basicConfig(
+    level=os.environ.get('LOG_LEVEL', 'INFO' if IS_PRODUCTION else 'DEBUG').upper(),
+    format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+)
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app
-app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "tujali-dev-secret-key")
+# AI content generation: the offline mock is the default; set USE_MOCK_AI=false
+# (plus OPENAI_API_KEY / ANTHROPIC_API_KEY) to use the real providers.
+if _env_bool('USE_MOCK_AI', True):
+    import mock_ai_service as ai_service
+else:
+    import ai_service
 
-# Import and register custom template filters
+app = Flask(__name__)
+
+secret_key = os.environ.get('SECRET_KEY') or os.environ.get('SESSION_SECRET')
+if not secret_key:
+    if IS_PRODUCTION:
+        raise RuntimeError('SECRET_KEY must be set when APP_ENV=production')
+    secret_key = 'dev-only-insecure-secret-key'
+    logger.warning('SECRET_KEY is not set; using an insecure development key')
+
+database_url = os.environ.get('DATABASE_URL')
+if not database_url:
+    if IS_PRODUCTION:
+        raise RuntimeError('DATABASE_URL must be set when APP_ENV=production')
+    database_url = 'sqlite:///' + os.path.join(app.instance_path, 'tujali.db')
+    os.makedirs(app.instance_path, exist_ok=True)
+# Some hosts (Heroku, Render, older Neon snippets) hand out postgres:// URLs.
+if database_url.startswith('postgres://'):
+    database_url = 'postgresql://' + database_url[len('postgres://'):]
+
+app.config.update(
+    SECRET_KEY=secret_key,
+    SQLALCHEMY_DATABASE_URI=database_url,
+    SQLALCHEMY_ENGINE_OPTIONS={'pool_pre_ping': True},
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=_env_bool('SESSION_COOKIE_SECURE', IS_PRODUCTION),
+    REMEMBER_COOKIE_HTTPONLY=True,
+    REMEMBER_COOKIE_SECURE=_env_bool('SESSION_COOKIE_SECURE', IS_PRODUCTION),
+    WTF_CSRF_TIME_LIMIT=None,
+    ALLOW_REGISTRATION=_env_bool('ALLOW_REGISTRATION', not IS_PRODUCTION),
+    ENABLE_USSD_SIMULATOR=_env_bool('ENABLE_USSD_SIMULATOR', not IS_PRODUCTION),
+)
+
+if _env_bool('BEHIND_PROXY', IS_PRODUCTION):
+    # Trust X-Forwarded-* from one reverse proxy (load balancer / nginx / Passenger).
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+db.init_app(app)
+migrate = Migrate(app, db)
+csrf = CSRFProtect(app)
+
 from filters import register_filters
 register_filters(app)
 
-# Add template filters
-from datetime import datetime
+
 @app.template_filter('now')
 def _jinja2_filter_now():
     """Return current datetime for templates"""
     return datetime.now()
 
-# Initialize Login Manager
+
+@app.context_processor
+def inject_settings():
+    return {'allow_registration': app.config['ALLOW_REGISTRATION']}
+
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+login_manager.session_protection = 'strong'
 
-# Initialize database (in-memory for MVP)
-# Double check database initialization
-init_db()
-
-# For debugging user authentication
-print("Initial users:", [f"{u.username}:{u.password_hash}" for u in db['users']])
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.get_by_id(int(user_id))
+    return User.get_by_id(user_id)
 
-# USSD simulator route
+
+@app.after_request
+def set_security_headers(response):
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    if IS_PRODUCTION:
+        response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    return response
+
+
+@app.errorhandler(403)
+def forbidden(error):
+    message = getattr(error, 'description', None)
+    if not message or message.startswith("You don't have the permission"):
+        message = 'You do not have permission to view this page.'
+    return render_template('error.html', code=403, message=message), 403
+
+
+@app.errorhandler(404)
+def not_found(error):
+    return render_template('error.html', code=404, message='Page not found.'), 404
+
+
+@app.errorhandler(500)
+def server_error(error):
+    db.session.rollback()
+    logger.exception('Unhandled server error')
+    return render_template('error.html', code=500,
+                           message='Something went wrong. Please try again.'), 500
+
+
+def _safe_next_url(target):
+    """Only allow relative redirects after login (prevents open redirects)."""
+    if not target:
+        return None
+    parsed = urlparse(target)
+    if parsed.scheme or parsed.netloc or not target.startswith('/'):
+        return None
+    return target
+
+
+def _require_provider():
+    """Provider profile of the logged-in user, or a 403 page if the account has none
+    (e.g. finance or lab staff opening a provider-only page)."""
+    provider = Provider.get_by_user_id(current_user.id)
+    if provider is None:
+        abort(403, description='This page is only available to accounts linked to a provider profile.')
+    return provider
+
+
+# ---------------------------------------------------------------------------
+# CLI commands: flask create-admin / flask seed-demo
+# ---------------------------------------------------------------------------
+
+@app.cli.command('create-admin')
+@click.option('--username', default=lambda: os.environ.get('ADMIN_USERNAME', 'admin'))
+@click.option('--email', default=lambda: os.environ.get('ADMIN_EMAIL', 'admin@example.com'))
+@click.option('--password', default=lambda: os.environ.get('ADMIN_PASSWORD'),
+              help='Defaults to $ADMIN_PASSWORD; prompted for if unset.')
+def create_admin_command(username, email, password):
+    """Create the super-admin account (or reset its password)."""
+    from seed import create_admin
+    if not password:
+        password = click.prompt('Admin password', hide_input=True, confirmation_prompt=True)
+    if len(password) < 12:
+        raise click.BadParameter('use at least 12 characters', param_hint='password')
+    _, created = create_admin(username, password, email)
+    click.echo(f"Super admin '{username}' {'created' if created else 'updated'}.")
+
+
+@app.cli.command('seed-demo')
+@click.option('--admin-password', default='admin123', show_default=True)
+def seed_demo_command(admin_password):
+    """Load demo data into an empty database (development/staging only)."""
+    if IS_PRODUCTION:
+        raise click.ClickException('Refusing to load demo data when APP_ENV=production.')
+    from seed import seed_demo_data
+    if seed_demo_data(admin_password):
+        click.echo('Demo data loaded.')
+    else:
+        click.echo('Database already has patients; demo data not loaded.')
+
+
+# ---------------------------------------------------------------------------
+# Health check and USSD
+# ---------------------------------------------------------------------------
+
+@app.route('/healthz')
+def healthz():
+    """Liveness/readiness probe for the host: checks the database connection."""
+    try:
+        db.session.execute(text('SELECT 1'))
+        return jsonify(status='ok'), 200
+    except Exception:
+        logger.exception('Health check failed')
+        return jsonify(status='error'), 503
+
+
 @app.route('/ussd_simulator.html')
 def ussd_simulator():
-    """Serve the USSD simulator HTML page"""
-    with open('ussd_simulator.html', 'r') as file:
-        simulator_html = file.read()
-    return simulator_html
+    """Serve the browser USSD simulator (disabled in production by default)."""
+    if not app.config['ENABLE_USSD_SIMULATOR']:
+        abort(404)
+    return send_from_directory(app.root_path, 'ussd_simulator.html')
 
-# USSD endpoint
+USSD_ALLOWED_IPS = {ip.strip() for ip in os.environ.get('USSD_ALLOWED_IPS', '').split(',') if ip.strip()}
+
+
 @app.route('/ussd', methods=['POST'])
+@csrf.exempt
 def ussd():
-    """Handle USSD requests from Africa's Talking API"""
-    session_id = request.form.get('sessionId')
-    service_code = request.form.get('serviceCode')
-    phone_number = request.form.get('phoneNumber')
-    text = request.form.get('text', '')
-    
-    # Log USSD request details
-    logger.debug(f"USSD Request: {phone_number}, {session_id}, {text}")
-    
-    # Process USSD request and get response
-    response = ussd_callback(session_id, service_code, phone_number, text)
-    
-    # Log response for debugging
-    logger.debug(f"USSD Response: {response}")
-    
-    return response
+    """Handle USSD requests from Africa's Talking (form-encoded POST)."""
+    if USSD_ALLOWED_IPS and request.remote_addr not in USSD_ALLOWED_IPS:
+        logger.warning('Rejected USSD request from %s', request.remote_addr)
+        abort(403)
+
+    session_id = request.form.get('sessionId', '').strip()
+    service_code = request.form.get('serviceCode', '')
+    phone_number = request.form.get('phoneNumber', '').strip()
+    ussd_text = request.form.get('text', '')
+    if not session_id or not phone_number:
+        return 'END Invalid request', 400, {'Content-Type': 'text/plain; charset=utf-8'}
+
+    logger.info('USSD request session=%s step=%d', session_id, len(ussd_text.split('*')) if ussd_text else 0)
+    response = ussd_callback(session_id, service_code, phone_number, ussd_text)
+    return response, 200, {'Content-Type': 'text/plain; charset=utf-8'}
 
 # Web routes for provider dashboard
 @app.route('/')
@@ -88,52 +255,28 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login page for healthcare providers"""
-    # Always reinitialize database to ensure admin user exists
-    init_db()
-    
+    """Login page for staff"""
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    
+
     form = LoginForm()
     if form.validate_on_submit():
-        username = form.username.data
-        password = form.password.data
-        
-        # Debug info
-        logger.debug(f"Login attempt: {username}")
-        
-        user = User.get_by_username(username)
-        
-        if user:
-            logger.debug(f"User found: {user.username}, with hash: {user.password_hash}")
-            # Store expected hash to compare
-            expected_hash = f"hashed_{password}"
-            logger.debug(f"Expected hash would be: {expected_hash}")
-            
-            # Debug check_password_hash function directly
-            valid_password = user.password_hash == expected_hash
-            logger.debug(f"Direct comparison: {valid_password}")
-            
-            # Also try the function
-            func_valid = check_password_hash(user.password_hash, password)
-            logger.debug(f"Function validity check: {func_valid}")
-            
-            if valid_password:
-                login_user(user)
-                flash('Login successful!', 'success')
-                return redirect(url_for('dashboard'))
-            else:
-                flash(f'Invalid password. Debug info has been logged.', 'danger')
-        else:
-            logger.debug(f"User not found: {username}")
-            flash('Invalid username.', 'danger')
-    
+        user = User.get_by_username(form.username.data.strip())
+        if user and user.is_active and user.check_password(form.password.data):
+            session.clear()
+            login_user(user, remember=bool(getattr(form, 'remember', None) and form.remember.data))
+            logger.info('User %s logged in', user.id)
+            return redirect(_safe_next_url(request.args.get('next')) or url_for('dashboard'))
+        logger.info('Failed login attempt')
+        flash('Invalid username or password.', 'danger')
+
     return render_template('login.html', form=form)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """Registration page for healthcare providers"""
+    """Self-service provider registration (off by default in production)."""
+    if not app.config['ALLOW_REGISTRATION']:
+        abort(404)
     form = RegistrationForm()
     
     if form.validate_on_submit():
@@ -146,9 +289,7 @@ def register():
             flash('Email already exists. Please choose a different one.', 'danger')
             return render_template('register.html', form=form)
         
-        # Create new user
-        password_hash = generate_password_hash(form.password.data)
-        user = User.create(form.username.data, form.email.data, password_hash)
+        user = User.create(form.username.data, form.email.data, form.password.data, role='provider')
         
         # Create provider profile
         provider = Provider.create(
@@ -189,38 +330,41 @@ def dashboard():
                 return redirect(url_for('lab_dashboard'))
             elif current_user.department == 'clinical':
                 return redirect(url_for('clinical_dashboard'))
-    
+            elif current_user.department == 'pharmacy':
+                return redirect(url_for('pharmacy_dashboard'))
+
     # Default provider dashboard
     provider = Provider.get_by_user_id(current_user.id)
-    
-    # Get statistics with safe defaults
-    total_patients = len(db.get('patients', []))
-    recent_patients = sorted(db.get('patients', []), key=lambda x: getattr(x, 'created_at', datetime.now()), reverse=True)[:5]
-    
-    # Get appointments and messages data
-    appointments = db.get('appointments', [])
-    user_appointments = [a for a in appointments if hasattr(a, 'provider_id') and a.provider_id == current_user.id]
-    recent_appointments = sorted(user_appointments, key=lambda x: getattr(x, 'created_at', datetime.now()), reverse=True)[:5]
-    
-    messages = db.get('messages', [])
-    user_messages = [m for m in messages if hasattr(m, 'provider_id') and m.provider_id == current_user.id]
-    recent_messages = sorted(user_messages, key=lambda x: getattr(x, 'created_at', datetime.now()), reverse=True)[:5]
-    
-    prescriptions = db.get('prescriptions', [])
-    user_prescriptions = [p for p in prescriptions if hasattr(p, 'provider_id') and p.provider_id == current_user.id]
-    recent_prescriptions = sorted(user_prescriptions, key=lambda x: getattr(x, 'created_at', datetime.now()), reverse=True)[:5]
-    
-    # Navigation items based on user permissions
-    nav_items = get_navigation_items()
-    
-    return render_template('dashboard.html', 
-                         provider=provider,
-                         total_patients=total_patients,
-                         recent_patients=recent_patients,
-                         recent_appointments=recent_appointments,
-                         recent_messages=recent_messages,
-                         recent_prescriptions=recent_prescriptions,
-                         nav_items=nav_items)
+
+    total_patients = Patient.get_count()
+    recent_patients = Patient.get_recent(5)
+
+    if provider:
+        recent_appointments = Appointment.get_recent_by_provider(provider.id, 5)
+        recent_messages = Message.get_recent_by_provider(provider.id, 5)
+        recent_prescriptions = sorted(Prescription.get_by_provider(provider.id),
+                                      key=lambda p: p.created_at, reverse=True)[:5]
+        pending_appointments = Appointment.get_count_by_status(provider.id, 'pending')
+        unread_messages = Message.get_unread_count(provider.id)
+        provider_payments = Payment.get_by_provider(provider.id)
+    else:
+        recent_appointments, recent_messages, recent_prescriptions = [], [], []
+        pending_appointments = unread_messages = 0
+        provider_payments = []
+
+    payment_summary = Payment.generate_payment_summary(provider_payments)
+
+    return render_template('dashboard.html',
+                           provider=provider,
+                           total_patients=total_patients,
+                           recent_patients=recent_patients,
+                           recent_appointments=recent_appointments,
+                           recent_messages=recent_messages,
+                           recent_prescriptions=recent_prescriptions,
+                           pending_appointments=pending_appointments,
+                           unread_messages=unread_messages,
+                           payment_summary=payment_summary,
+                           nav_items=get_navigation_items())
 
 @app.route('/patients')
 @login_required
@@ -234,7 +378,7 @@ def patients():
 @login_required
 def patient_detail(patient_id):
     """View patient details"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     patient = Patient.get_by_id(patient_id)
     
     if not patient:
@@ -254,7 +398,7 @@ def patient_detail(patient_id):
 @login_required
 def appointments():
     """List and manage appointments"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     appointment_list = Appointment.get_by_provider(provider.id)
     return render_template('appointments.html', provider=provider, appointments=appointment_list)
 
@@ -270,7 +414,7 @@ def update_appointment():
         flash('Invalid request. Appointment ID and status are required.', 'danger')
         return redirect(url_for('appointments'))
     
-    success = Appointment.update_status(int(appointment_id), status)
+    success = Appointment.update_status(appointment_id, status)
     
     if success:
         flash('Appointment updated successfully.', 'success')
@@ -283,7 +427,7 @@ def update_appointment():
 @login_required
 def messages():
     """Message center for provider"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     conversations = Message.get_conversations(provider.id)
     return render_template('messages.html', provider=provider, conversations=conversations)
 
@@ -291,7 +435,7 @@ def messages():
 @login_required
 def patient_messages(patient_id):
     """Messages with a specific patient"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     patient = Patient.get_by_id(patient_id)
     
     if not patient:
@@ -516,23 +660,16 @@ def health_tips():
             # Generate personalized health tips
             logger.debug(f"Generating health tips for patient {patient.id}")
             
-            # Due to API quota limitations, we'll use the mock service directly
-            # This ensures the feature still works when APIs are unavailable
-            generated_tips = mock_ai_service.generate_health_tips(patient_data, symptoms, language)
-            logger.debug(f"Successfully generated health tips with mock service")
-            flash('Using Health AI Recommendations service (offline mode active).', 'info')
-            
-            # Store in session for shared with patient
+            generated_tips = ai_service.generate_health_tips(patient_data, symptoms, language)
+
+            # Store in session for sharing with the patient
             session['last_generated_tips'] = generated_tips
             session['last_tips_patient_id'] = patient.id
-            
-            # Log success
-            logger.debug(f"Health tips generated: {generated_tips}")
-            
+
             flash('Health tips generated successfully.', 'success')
         except Exception as e:
-            logger.error(f"Error generating health tips: {str(e)}")
-            flash(f'Error generating health tips: {str(e)}', 'danger')
+            logger.exception("Error generating health tips")
+            flash('Could not generate health tips. Please try again.', 'danger')
     
     return render_template('health_tips.html', 
                           provider=provider,
@@ -544,7 +681,7 @@ def health_tips():
 @login_required
 def share_health_tips(patient_id):
     """Share generated health tips with a patient via SMS"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     
     # Check if there are tips in the session
     if 'last_generated_tips' not in session or session.get('last_tips_patient_id') != patient_id:
@@ -597,18 +734,8 @@ def health_education():
             # Generate health education content
             logger.debug(f"Generating health education content on: {topic}")
             
-            # Due to API quota limitations, we'll use the mock service directly
-            # This ensures the feature still works when APIs are unavailable
-            generated_content = mock_ai_service.generate_health_education(topic, language)
-            logger.debug(f"Successfully generated health education content with mock service")
-            flash('Using Health Education service (offline mode active).', 'info')
-            
-            # Store in session for later use
-            session['last_education_content'] = generated_content
-            
-            # Log success
-            logger.debug(f"Successfully generated health education content: {generated_content}")
-            
+            generated_content = ai_service.generate_health_education(topic, language)
+
             # Optionally save to HealthInfo database
             if generated_content and 'title' in generated_content and 'overview' in generated_content:
                 # Create simplified content from the structured data
@@ -639,9 +766,9 @@ def health_education():
             else:
                 flash('Health education content generated.', 'success')
                 
-        except Exception as e:
-            logger.error(f"Error generating health education content: {str(e)}")
-            flash(f'Error generating health education content: {str(e)}', 'danger')
+        except Exception:
+            logger.exception("Error generating health education content")
+            flash('Could not generate health education content. Please try again.', 'danger')
     
     # Get existing health info
     info_list = HealthInfo.get_all()
@@ -660,10 +787,9 @@ def user_journey_list():
     provider = Provider.get_by_user_id(current_user.id)
     patients = Patient.get_all()
     
-    # For each patient, get a count of their interactions
+    counts = UserInteraction.count_by_patient()
     for patient in patients:
-        interactions = UserInteraction.get_by_patient(patient.id)
-        patient.interaction_count = len(interactions)
+        patient.interaction_count = counts.get(patient.id, 0)
     
     return render_template('user_journey_list.html', 
                           provider=provider,
@@ -695,6 +821,8 @@ def user_journey_detail(patient_id):
 def user_journey_api(patient_id):
     """API endpoint for user journey data"""
     journey_data = UserInteraction.get_patient_journey(patient_id)
+    if journey_data is None:
+        abort(404)
     return jsonify(journey_data)
 
 
@@ -704,8 +832,9 @@ def track_interaction(patient_id, interaction_type, description, metadata=None):
     """Helper function to track user interactions"""
     try:
         UserInteraction.create(patient_id, interaction_type, description, metadata)
-    except Exception as e:
-        logger.error(f"Error tracking interaction: {str(e)}")
+    except Exception:
+        db.session.rollback()
+        logger.exception("Error tracking interaction")
 
 
 # Hook into patient message route to track interactions
@@ -714,8 +843,8 @@ old_patient_messages = app.view_functions['patient_messages']
 def patient_messages_with_tracking(patient_id):
     """Wrap patient_messages to track interactions"""
     patient = Patient.get_by_id(patient_id)
-    
-    if request.method == 'POST':
+
+    if request.method == 'POST' and patient:
         form = MessageForm()
         if form.validate_on_submit():
             # Track the interaction when a message is sent
@@ -760,9 +889,8 @@ old_share_health_tips = app.view_functions['share_health_tips']
 
 def share_health_tips_with_tracking(patient_id):
     """Wrap share_health_tips to track interactions"""
-    if request.method == 'POST':
-        patient = Patient.get_by_id(patient_id)
-        # Track the interaction when health tips are shared
+    patient = Patient.get_by_id(patient_id)
+    if request.method == 'POST' and patient and session.get('last_tips_patient_id') == patient_id:
         track_interaction(
             patient_id,
             'health_tip',
@@ -790,8 +918,13 @@ def create_payment():
     if not appointment_id or not amount:
         flash('Appointment ID and amount are required.', 'danger')
         return redirect(url_for('payments'))
-    
-    appointment = Appointment.get_by_id(int(appointment_id))
+    try:
+        amount = float(amount)
+    except ValueError:
+        flash('Amount must be a number.', 'danger')
+        return redirect(url_for('payments'))
+
+    appointment = Appointment.get_by_id(appointment_id)
     if not appointment:
         flash('Appointment not found.', 'danger')
         return redirect(url_for('payments'))
@@ -803,7 +936,7 @@ def create_payment():
     
     # Create payment record
     payment = Payment.create(
-        int(appointment_id),
+        appointment.id,
         float(amount),
         patient.phone_number,
         payment_method
@@ -843,13 +976,13 @@ def update_payment_status():
         flash('Payment ID and status are required.', 'danger')
         return redirect(url_for('payments'))
     
-    payment = Payment.get_by_id(int(payment_id))
+    payment = Payment.get_by_id(payment_id)
     if not payment:
         flash('Payment not found.', 'danger')
         return redirect(url_for('payments'))
     
     # Update payment status
-    success = Payment.update_status(int(payment_id), status)
+    success = Payment.update_status(payment_id, status)
     
     if success:
         # Update appointment payment status
@@ -885,7 +1018,7 @@ def update_payment_status():
 @login_required
 def prescriptions():
     """List all prescriptions"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     prescription_list = Prescription.get_by_provider(provider.id)
     return render_template('prescriptions.html', provider=provider, prescriptions=prescription_list)
 
@@ -893,7 +1026,7 @@ def prescriptions():
 @login_required
 def create_prescription():
     """Create a new prescription"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     form = PrescriptionForm()
     
     # Get patients and appointments for dropdown
@@ -933,7 +1066,7 @@ def create_prescription():
         )
         
         # Create bill for prescription
-        patient = Patient.get_by_id(int(form.patient_id.data))
+        patient = Patient.get_by_id(form.patient_id.data)
         if patient:
             bill = Bill.create(patient.id, provider.id, appointment_id)
             bill.add_item('prescription', f'Prescription: {form.medication_name.data}', 50.0)  # Base prescription fee
@@ -965,7 +1098,7 @@ def update_prescription_status(prescription_id):
 @login_required
 def walk_in_patients():
     """Manage walk-in patients"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     waiting_patients = WalkInPatient.get_by_provider(provider.id, 'waiting')
     in_consultation = WalkInPatient.get_by_provider(provider.id, 'in_consultation')
     completed_today = WalkInPatient.get_by_provider(provider.id, 'completed')
@@ -980,7 +1113,7 @@ def walk_in_patients():
 @login_required
 def register_walk_in():
     """Register a walk-in patient"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     walk_in_form = WalkInForm()
     quick_patient_form = QuickPatientForm()
     
@@ -1036,7 +1169,7 @@ def update_walk_in_status():
     walkin_id = request.form.get('walkin_id', type=int)
     status = request.form.get('status')
     
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     walkin = WalkInPatient.get_by_id(walkin_id)
     
     if WalkInPatient.update_status(walkin_id, status):
@@ -1075,7 +1208,7 @@ def update_walk_in_status():
 @login_required
 def lab_tests():
     """List all lab tests"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     test_list = LabTest.get_by_provider(provider.id)
     return render_template('lab_tests.html', provider=provider, lab_tests=test_list)
 
@@ -1083,7 +1216,7 @@ def lab_tests():
 @login_required
 def order_lab_test():
     """Order a new lab test"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     form = LabTestForm()
     
     # Get patients and appointments for dropdown
@@ -1107,7 +1240,7 @@ def order_lab_test():
         )
         
         # Create bill for lab test
-        patient = Patient.get_by_id(int(form.patient_id.data))
+        patient = Patient.get_by_id(form.patient_id.data)
         if patient:
             bill = Bill.create(patient.id, provider.id, appointment_id)
             bill.add_item('lab_test', f'Lab Test: {form.test_name.data}', float(form.cost.data))
@@ -1172,7 +1305,7 @@ def lab_test_results(test_id):
 @login_required
 def finance():
     """Unified financial management dashboard"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     
     # Get bills and payments
     bills = Bill.get_by_provider(provider.id)
@@ -1225,15 +1358,18 @@ def payments():
 @login_required
 def create_bill():
     """Create a new bill"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     patients = Patient.get_all()
     appointments = Appointment.get_by_provider(provider.id)
     
     if request.method == 'POST':
-        patient_id = int(request.form.get('patient_id'))
-        appointment_id = int(request.form.get('appointment_id')) if request.form.get('appointment_id') else None
-        
-        bill = Bill.create(patient_id, provider.id, appointment_id)
+        patient = Patient.get_by_id(request.form.get('patient_id'))
+        if not patient:
+            flash('Please choose a valid patient.', 'danger')
+            return redirect(url_for('create_bill'))
+        appointment = Appointment.get_by_id(request.form.get('appointment_id'))
+
+        bill = Bill.create(patient.id, provider.id, appointment.id if appointment else None)
         flash('New bill created successfully.', 'success')
         return redirect(url_for('edit_bill', bill_id=bill.id))
     
@@ -1274,7 +1410,7 @@ def edit_bill(bill_id):
 @login_required
 def record_payment():
     """Record a payment against a bill"""
-    provider = Provider.get_by_user_id(current_user.id)
+    provider = _require_provider()
     form = PaymentRecordForm()
     
     # Get unpaid/partially paid bills
@@ -1284,30 +1420,25 @@ def record_payment():
     form.bill_id.choices = [(str(b.id), f"Bill #{b.id} - {b.patient.name} (KSh {b.total_amount})") for b in unpaid_bills]
     
     if form.validate_on_submit():
-        bill = Bill.get_by_id(int(form.bill_id.data))
+        bill = Bill.get_by_id(form.bill_id.data)
         if bill:
-            # Create payment record
             payment = Payment.create(
                 None,  # No appointment_id for direct bill payments
                 float(form.amount.data),
                 bill.patient.phone_number,
-                form.payment_method.data
+                form.payment_method.data,
+                bill_id=bill.id,
             )
-            
-            if form.reference.data:
-                payment.mpesa_reference = form.reference.data
-            
-            # Update payment status to completed
-            Payment.update_status(payment.id, 'completed', form.reference.data)
-            
-            # Update bill status based on payment
-            total_paid = float(form.amount.data)  # In real system, sum all payments for this bill
-            if total_paid >= bill.total_amount:
+            Payment.update_status(payment.id, 'completed', form.reference.data or None)
+
+            # Bill status reflects everything paid against it so far
+            if bill.amount_paid >= bill.total_amount:
                 bill.status = 'paid'
                 bill.paid_at = datetime.now()
             else:
                 bill.status = 'partially_paid'
-            
+            db.session.commit()
+
             flash('Payment recorded successfully.', 'success')
             return redirect(url_for('finance'))
     
@@ -1327,127 +1458,103 @@ def update_bill_status():
         return redirect(url_for('finance'))
     
     try:
-        bill = Bill.get_by_id(int(bill_id))
+        bill = Bill.get_by_id(bill_id)
         if not bill:
             flash('Bill not found.', 'danger')
             return redirect(url_for('finance'))
         
+        if status not in ('pending', 'partially_paid', 'paid', 'cancelled'):
+            flash('Invalid bill status.', 'danger')
+            return redirect(url_for('finance'))
+
         bill.status = status
         if status == 'paid':
             bill.paid_at = datetime.now()
-        
+        db.session.commit()
+
         flash(f'Bill #{bill_id} status updated to {status}.', 'success')
     except ValueError:
         flash('Invalid bill ID.', 'danger')
-    except Exception as e:
-        flash(f'Error updating bill status: {str(e)}', 'danger')
+    except Exception:
+        db.session.rollback()
+        logger.exception('Error updating bill status')
+        flash('Error updating bill status.', 'danger')
     
     return redirect(url_for('finance'))
 
 # ===== SUPER ADMIN INTERFACE =====
+
+def _require_super_admin():
+    if current_user.role != 'super_admin':
+        abort(403, description='Super admin privileges required.')
+
 
 @app.route('/admin_dashboard')
 @login_required
 @requires_permission('user_management')
 def admin_dashboard():
     """Super Admin Dashboard - Only accessible by super_admin"""
-    if not hasattr(current_user, 'role') or current_user.role != 'super_admin':
-        flash('Access denied. Super admin privileges required.', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    # Get system statistics
-    total_users = len(db['users'])
-    total_patients = len(db['patients'])
-    total_appointments = len(db['appointments'])
-    total_bills = len(db['bills'])
-    
-    # Get department statistics
+    _require_super_admin()
+
+    users = User.get_all()
     department_stats = {}
-    for user in db['users']:
-        dept = user.department
-        if dept not in department_stats:
-            department_stats[dept] = 0
-        department_stats[dept] += 1
-    
-    # Recent activities
-    recent_users = sorted(db['users'], key=lambda x: x.created_at, reverse=True)[:5]
-    
+    for user in users:
+        department_stats[user.department] = department_stats.get(user.department, 0) + 1
+
     return render_template('admin_dashboard.html',
-                         total_users=total_users,
-                         total_patients=total_patients,
-                         total_appointments=total_appointments,
-                         total_bills=total_bills,
-                         department_stats=department_stats,
-                         recent_users=recent_users)
+                           total_users=len(users),
+                           total_patients=Patient.get_count(),
+                           total_appointments=Appointment.query.count(),
+                           total_bills=Bill.query.count(),
+                           department_stats=department_stats,
+                           recent_users=sorted(users, key=lambda u: u.created_at, reverse=True)[:5])
+
 
 @app.route('/manage_users')
 @login_required
 @requires_permission('user_management')
 def manage_users():
     """Manage system users"""
-    if not hasattr(current_user, 'role') or current_user.role != 'super_admin':
-        flash('Access denied. Super admin privileges required.', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    users = db['users']
-    return render_template('manage_users.html', users=users)
+    _require_super_admin()
+    return render_template('manage_users.html', users=User.get_all())
+
 
 @app.route('/create_user', methods=['GET', 'POST'])
 @login_required
 @requires_permission('user_management')
 def create_user():
     """Create new system user"""
-    if not hasattr(current_user, 'role') or current_user.role != 'super_admin':
-        flash('Access denied. Super admin privileges required.', 'danger')
-        return redirect(url_for('dashboard'))
-    
+    _require_super_admin()
     form = UserManagementForm()
-    
+
     if form.validate_on_submit():
-        # Check if username already exists
-        existing_user = next((u for u in db['users'] if u.username == form.username.data), None)
-        if existing_user:
+        if User.username_exists(form.username.data):
             flash('Username already exists.', 'danger')
             return render_template('create_user.html', form=form)
-        
-        # Create new user
-        new_id = max([u.id for u in db['users']], default=0) + 1
-        password_hash = f"hashed_{form.password.data}"
-        
-        new_user = User(
-            id=new_id,
-            username=form.username.data,
-            email=form.email.data,
-            password_hash=password_hash,
-            role=form.role.data,
-            department=form.department.data,
-            permissions=form.permissions.data
-        )
-        
-        db['users'].append(new_user)
+        if User.email_exists(form.email.data):
+            flash('Email already exists.', 'danger')
+            return render_template('create_user.html', form=form)
+
+        User.create(form.username.data, form.email.data, form.password.data,
+                    role=form.role.data, department=form.department.data,
+                    permissions=form.permissions.data)
         flash(f'User {form.username.data} created successfully.', 'success')
         return redirect(url_for('manage_users'))
-    
+
     return render_template('create_user.html', form=form)
+
 
 @app.route('/manage_departments')
 @login_required
 @requires_permission('user_management')
 def manage_departments():
     """Manage departments and permissions"""
-    if not hasattr(current_user, 'role') or current_user.role != 'super_admin':
-        flash('Access denied. Super admin privileges required.', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    # Group users by department
+    _require_super_admin()
     departments = {}
-    for user in db['users']:
-        dept = user.department
-        if dept not in departments:
-            departments[dept] = []
-        departments[dept].append(user)
-    
+    for user in User.get_all():
+        departments.setdefault(user.department or 'unassigned', []).append(user)
     return render_template('manage_departments.html', departments=departments)
+
 
 # ===== DEPARTMENT-SPECIFIC DASHBOARDS =====
 
@@ -1456,206 +1563,110 @@ def manage_departments():
 @requires_department('finance')
 def finance_dashboard():
     """Finance Department Dashboard"""
-    if not hasattr(current_user, 'can_access_department') or not current_user.can_access_department('finance'):
-        flash('Access denied. Finance department access required.', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    # Finance-specific statistics with safe handling
-    total_bills = len(db.get('bills', []))
-    total_payments = len(db.get('payments', []))
-    pending_bills = len([b for b in db.get('bills', []) if hasattr(b, 'status') and b.status == 'pending'])
-    paid_bills = len([b for b in db.get('bills', []) if hasattr(b, 'status') and b.status == 'paid'])
-    
-    # Calculate total revenue
-    total_revenue = sum([p.amount for p in db.get('payments', []) if hasattr(p, 'amount') and hasattr(p, 'status') and p.status == 'completed'])
-    pending_revenue = sum([b.total_amount for b in db.get('bills', []) if hasattr(b, 'total_amount') and hasattr(b, 'status') and b.status == 'pending'])
-    
-    # Recent financial activities with safe sorting
-    recent_bills = sorted([b for b in db.get('bills', []) if hasattr(b, 'created_at')], 
-                         key=lambda x: x.created_at if hasattr(x.created_at, 'date') else datetime.now(), 
-                         reverse=True)[:5]
-    recent_payments = sorted([p for p in db.get('payments', []) if hasattr(p, 'created_at')], 
-                            key=lambda x: x.created_at if hasattr(x.created_at, 'date') else datetime.now(), 
-                            reverse=True)[:5]
-    
+    bills = Bill.get_all()
+    payments = Payment.get_all()
+
     return render_template('finance_dashboard.html',
-                         total_bills=total_bills,
-                         total_payments=total_payments,
-                         pending_bills=pending_bills,
-                         paid_bills=paid_bills,
-                         total_revenue=total_revenue,
-                         pending_revenue=pending_revenue,
-                         recent_bills=recent_bills,
-                         recent_payments=recent_payments)
+                           total_bills=len(bills),
+                           total_payments=len(payments),
+                           pending_bills=len([b for b in bills if b.status == 'pending']),
+                           paid_bills=len([b for b in bills if b.status == 'paid']),
+                           total_revenue=sum(p.amount for p in payments if p.status == 'completed'),
+                           pending_revenue=sum(b.total_amount for b in bills if b.status == 'pending'),
+                           recent_bills=bills[:5],
+                           recent_payments=payments[:5])
+
 
 @app.route('/lab_dashboard')
 @login_required
 @requires_department('laboratory')
 def lab_dashboard():
     """Laboratory Department Dashboard"""
-    if not hasattr(current_user, 'can_access_department') or not current_user.can_access_department('laboratory'):
-        flash('Access denied. Laboratory department access required.', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    # Enhanced lab statistics with USSD data integration
-    total_tests = len(db.get('lab_tests', []))
-    pending_tests = len([t for t in db.get('lab_tests', []) if hasattr(t, 'status') and t.status == 'ordered'])
-    completed_tests = len([t for t in db.get('lab_tests', []) if hasattr(t, 'status') and t.status == 'completed'])
-    
-    # Tests ordered via USSD today
+    tests = LabTest.get_all()  # newest first
     today = datetime.now().date()
-    ussd_tests_today = len([t for t in db.get('lab_tests', []) 
-                           if hasattr(t, 'ordered_at') and hasattr(t, 'source') and 
-                           t.source == 'ussd' and t.ordered_at.date() == today])
-    
-    # Recent lab activities from USSD
-    recent_tests = sorted([t for t in db.get('lab_tests', []) if hasattr(t, 'ordered_at')], 
-                         key=lambda x: x.ordered_at, reverse=True)[:5]
-    
-    # Sample collection queue
-    collection_queue = [t for t in db.get('lab_tests', []) 
-                       if hasattr(t, 'status') and t.status == 'ordered'][:10]
-    
+
     return render_template('lab_dashboard.html',
-                         total_tests=total_tests,
-                         pending_tests=pending_tests,
-                         completed_tests=completed_tests,
-                         ussd_tests_today=ussd_tests_today,
-                         recent_tests=recent_tests,
-                         collection_queue=collection_queue)
+                           total_tests=len(tests),
+                           pending_tests=len([t for t in tests if t.status == 'ordered']),
+                           completed_tests=len([t for t in tests if t.status == 'completed']),
+                           ussd_tests_today=len([t for t in tests
+                                                 if t.source == 'ussd' and t.ordered_at.date() == today]),
+                           recent_tests=tests[:5],
+                           collection_queue=[t for t in reversed(tests) if t.status == 'ordered'][:10])
+
 
 @app.route('/pharmacy_dashboard')
 @login_required
 @requires_department('pharmacy')
 def pharmacy_dashboard():
     """Pharmacy Department Dashboard"""
-    if not hasattr(current_user, 'can_access_department') or not current_user.can_access_department('pharmacy'):
-        flash('Access denied. Pharmacy department access required.', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    # Pharmacy statistics with USSD integration
-    pending_prescriptions = len([p for p in db.get('prescriptions', []) if hasattr(p, 'status') and p.status == 'pending'])
-    
-    # Prescriptions dispensed today
+    prescriptions = Prescription.get_all()  # newest first
     today = datetime.now().date()
-    dispensed_today = len([p for p in db.get('prescriptions', []) 
-                          if hasattr(p, 'dispensed_at') and hasattr(p, 'status') and 
-                          p.status == 'dispensed' and p.dispensed_at.date() == today])
-    
-    # Mock inventory data for low stock alerts
-    low_stock_items = 5  # Would come from inventory system
-    delivery_requests = len([p for p in db.get('prescriptions', []) 
-                           if hasattr(p, 'delivery_method') and p.delivery_method == 'delivery'])
-    
-    # Recent prescriptions from USSD consultations
-    recent_prescriptions = sorted([p for p in db.get('prescriptions', []) if hasattr(p, 'created_at')], 
-                                 key=lambda x: x.created_at, reverse=True)[:5]
-    
-    # Sample drug interaction alerts
+
+    # Inventory and interaction alerts are placeholders until an inventory
+    # system is integrated.
     drug_interactions = [
         {'patient_id': 1, 'warning': 'Warfarin and Aspirin interaction - bleeding risk'},
         {'patient_id': 3, 'warning': 'ACE inhibitor and Potassium supplement - hyperkalemia risk'}
     ]
-    
-    # Sample inventory items
     inventory_items = [
         {'id': 1, 'drug_name': 'Paracetamol 500mg', 'current_stock': 50, 'minimum_stock': 100, 'unit': 'tablets', 'last_restocked': '2025-06-20'},
         {'id': 2, 'drug_name': 'Amoxicillin 250mg', 'current_stock': 200, 'minimum_stock': 150, 'unit': 'capsules', 'last_restocked': '2025-06-18'},
         {'id': 3, 'drug_name': 'ORS Sachets', 'current_stock': 25, 'minimum_stock': 50, 'unit': 'sachets', 'last_restocked': '2025-06-15'},
         {'id': 4, 'drug_name': 'Insulin (Human)', 'current_stock': 0, 'minimum_stock': 10, 'unit': 'vials', 'last_restocked': None}
     ]
-    
+
     return render_template('pharmacy_dashboard.html',
-                         pending_prescriptions=pending_prescriptions,
-                         dispensed_today=dispensed_today,
-                         low_stock_items=low_stock_items,
-                         delivery_requests=delivery_requests,
-                         recent_prescriptions=recent_prescriptions,
-                         drug_interactions=drug_interactions,
-                         inventory_items=inventory_items)
-    
-    # Lab-specific statistics with safe handling
-    total_tests = len(db.get('lab_tests', []))
-    pending_tests = len([t for t in db.get('lab_tests', []) if hasattr(t, 'status') and t.status == 'pending'])
-    completed_tests = len([t for t in db.get('lab_tests', []) if hasattr(t, 'status') and t.status == 'completed'])
-    in_progress_tests = len([t for t in db.get('lab_tests', []) if hasattr(t, 'status') and t.status == 'in_progress'])
-    
-    # Recent lab activities with safe sorting
-    recent_tests = sorted([t for t in db.get('lab_tests', []) if hasattr(t, 'created_at')], 
-                         key=lambda x: x.created_at if hasattr(x.created_at, 'date') else datetime.now(), 
-                         reverse=True)[:10]
-    
-    # Get lab results that need processing
-    pending_results = len([r for r in db.get('lab_results', []) if hasattr(r, 'status') and r.status == 'pending'])
-    
-    return render_template('lab_dashboard.html',
-                         total_tests=total_tests,
-                         pending_tests=pending_tests,
-                         completed_tests=completed_tests,
-                         in_progress_tests=in_progress_tests,
-                         pending_results=pending_results,
-                         recent_tests=recent_tests)
+                           pending_prescriptions=len([p for p in prescriptions if p.status == 'pending']),
+                           dispensed_today=len([p for p in prescriptions
+                                                if p.status == 'dispensed' and p.dispensed_at
+                                                and p.dispensed_at.date() == today]),
+                           low_stock_items=len([i for i in inventory_items
+                                                if i['current_stock'] < i['minimum_stock']]),
+                           delivery_requests=len([p for p in prescriptions
+                                                  if p.delivery_method in ('bike', 'drone')]),
+                           recent_prescriptions=prescriptions[:5],
+                           drug_interactions=drug_interactions,
+                           inventory_items=inventory_items)
+
+
+def _is_today(date_str, today):
+    """Appointment dates are stored as 'DD-MM-YYYY' strings (USSD input)."""
+    for fmt in ('%d-%m-%Y', '%Y-%m-%d', '%d/%m/%Y'):
+        try:
+            return datetime.strptime(str(date_str), fmt).date() == today
+        except (TypeError, ValueError):
+            continue
+    return False
+
 
 @app.route('/clinical_dashboard')
 @login_required
 @requires_department('clinical')
 def clinical_dashboard():
     """Clinical Department Dashboard"""
-    if not hasattr(current_user, 'can_access_department') or not current_user.can_access_department('clinical'):
-        flash('Access denied. Clinical department access required.', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    # Enhanced clinical statistics with USSD integration
-    total_patients = len(db['patients'])
-    total_appointments = len(db['appointments'])
-    
-    # USSD-originated consultations today
     today = datetime.now().date()
-    today_appointments = 0
-    ussd_consultations_today = 0
-    try:
-        today_appointments = len([a for a in db['appointments'] if hasattr(a, 'date') and 
-                                 (a.date.date() == today if hasattr(a.date, 'date') else 
-                                  datetime.strptime(str(a.date), '%Y-%m-%d').date() == today)])
-        # Track USSD-originated consultations
-        ussd_consultations_today = len([a for a in db['appointments'] if hasattr(a, 'source') and 
-                                       a.source == 'ussd' and hasattr(a, 'date') and 
-                                       a.date.date() == today])
-    except:
-        today_appointments = 0
-        ussd_consultations_today = 0
-    
-    # Prescription management from USSD
-    pending_prescriptions = len([p for p in db.get('prescriptions', []) if hasattr(p, 'status') and p.status == 'pending'])
-    ussd_prescriptions = len([p for p in db.get('prescriptions', []) if hasattr(p, 'source') and p.source == 'ussd'])
-    
-    # Active USSD patient symptoms tracking
-    active_symptoms = len([p for p in db['patients'] if hasattr(p, 'symptoms') and p.symptoms])
-    
-    # Emergency alerts from USSD
-    emergency_alerts = len([p for p in db['patients'] if hasattr(p, 'symptoms') and 
-                           any('severe' in str(symptom).lower() or 'emergency' in str(symptom).lower() 
-                               for symptom in p.symptoms)])
-    
-    # Recent clinical activities with safe sorting
-    recent_appointments = sorted([a for a in db['appointments'] if hasattr(a, 'created_at')], 
-                                key=lambda x: x.created_at if hasattr(x.created_at, 'date') else datetime.now(), 
-                                reverse=True)[:5]
-    recent_prescriptions = sorted([p for p in db.get('prescriptions', []) if hasattr(p, 'created_at')], 
-                                 key=lambda x: x.created_at if hasattr(x.created_at, 'date') else datetime.now(), 
-                                 reverse=True)[:5]
-    
+    appointments = Appointment.get_all()  # newest first
+    prescriptions = Prescription.get_all()
+    patients = Patient.get_all()
+
+    todays = [a for a in appointments if _is_today(a.date, today)]
+    emergency_alerts = len([p for p in patients
+                            if any(s.severity == 'Severe' or 'emergency' in s.text.lower()
+                                   for s in p.symptoms)])
+
     return render_template('clinical_dashboard.html',
-                         total_patients=total_patients,
-                         total_appointments=total_appointments,
-                         today_appointments=today_appointments,
-                         ussd_consultations_today=ussd_consultations_today,
-                         pending_prescriptions=pending_prescriptions,
-                         ussd_prescriptions=ussd_prescriptions,
-                         active_symptoms=active_symptoms,
-                         emergency_alerts=emergency_alerts,
-                         recent_appointments=recent_appointments,
-                         recent_prescriptions=recent_prescriptions)
+                           total_patients=len(patients),
+                           total_appointments=len(appointments),
+                           today_appointments=len(todays),
+                           ussd_consultations_today=len([a for a in todays if a.source == 'ussd']),
+                           pending_prescriptions=len([p for p in prescriptions if p.status == 'pending']),
+                           ussd_prescriptions=len([p for p in prescriptions if p.source == 'ussd']),
+                           active_symptoms=len([p for p in patients if p.symptoms]),
+                           emergency_alerts=emergency_alerts,
+                           recent_appointments=appointments[:5],
+                           recent_prescriptions=prescriptions[:5])
+
 
 # ===== ROLE-BASED ACCESS CONTROL =====
 
@@ -1663,46 +1674,44 @@ def clinical_dashboard():
 @login_required
 def user_profile():
     """Display current user's profile and permissions"""
-    user_permissions = getattr(current_user, 'permissions', [])
-    user_department = getattr(current_user, 'department', 'None')
-    user_role = getattr(current_user, 'role', 'user')
-    
-    accessible_routes = utils.get_user_accessible_routes()
-    
     return render_template('user_profile.html',
-                         user=current_user,
-                         user_permissions=user_permissions,
-                         user_department=user_department,
-                         user_role=user_role,
-                         accessible_routes=accessible_routes)
+                           user=current_user,
+                           user_permissions=current_user.permissions or [],
+                           user_department=current_user.department or 'None',
+                           user_role=current_user.role,
+                           accessible_routes=utils.get_user_accessible_routes())
+
 
 @app.route('/system_status')
 @login_required
 @requires_permission('reports')
 def system_status():
     """System status and health check"""
-    if not hasattr(current_user, 'role') or current_user.role != 'super_admin':
-        flash('Access denied. Super admin privileges required.', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    # System health metrics
+    _require_super_admin()
+
+    try:
+        db.session.execute(text('SELECT 1'))
+        database_ok = True
+    except Exception:
+        logger.exception('Database check failed')
+        database_ok = False
+
     system_stats = {
-        'total_users': len(db['users']),
-        'total_patients': len(db['patients']),
-        'total_providers': len(db['providers']),
-        'total_appointments': len(db['appointments']),
-        'total_messages': len(db['messages']),
-        'total_bills': len(db['bills']),
-        'total_payments': len(db['payments']),
-        'total_prescriptions': len(db['prescriptions']),
-        'total_lab_tests': len(db['lab_tests']),
-        'active_walk_ins': len([w for w in db['walk_in_patients'] if w.status == 'waiting'])
+        'total_users': User.count(),
+        'total_patients': Patient.get_count(),
+        'total_providers': Provider.query.count(),
+        'total_appointments': Appointment.query.count(),
+        'total_messages': Message.count(),
+        'total_bills': Bill.query.count(),
+        'total_payments': Payment.query.count(),
+        'total_prescriptions': Prescription.query.count(),
+        'total_lab_tests': LabTest.query.count(),
+        'active_walk_ins': WalkInPatient.count_by_status('waiting'),
     }
-    
-    return render_template('system_status.html', system_stats=system_stats)
 
-
+    return render_template('system_status.html', system_stats=system_stats,
+                           database_ok=database_ok, app_env=APP_ENV)
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=not IS_PRODUCTION)

@@ -240,3 +240,23 @@ def can_access_route(route_name):
     
     accessible_routes = get_user_accessible_routes()
     return route_name in accessible_routes
+
+_WEEKDAYS = {
+    'en': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    'sw': ['Jumatatu', 'Jumanne', 'Jumatano', 'Alhamisi', 'Ijumaa', 'Jumamosi', 'Jumapili'],
+    'fr': ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+}
+
+
+def format_date(date_str, language='en'):
+    """Format a 'DD-MM-YYYY' date for a short USSD screen, e.g. 'Tue 19-11-2026'.
+
+    Falls back to the original string if it can't be parsed.
+    """
+    from datetime import datetime
+    try:
+        date = datetime.strptime(str(date_str), '%d-%m-%Y')
+    except (TypeError, ValueError):
+        return str(date_str)
+    weekday = _WEEKDAYS.get(language, _WEEKDAYS['en'])[date.weekday()]
+    return f"{weekday} {date.strftime('%d-%m-%Y')}"

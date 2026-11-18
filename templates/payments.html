@@ -288,6 +288,7 @@
             <div class="card-body">
                 {% if pending_appointments %}
                 <form action="{{ url_for('create_payment') }}" method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label for="appointment_id" class="form-label">Appointment</label>
                         <select class="form-select" id="appointment_id" name="appointment_id" required>
@@ -366,7 +367,8 @@
                 },
                 body: new URLSearchParams({
                     'payment_id': paymentId,
-                    'status': status
+                    'status': status,
+                    'csrf_token': '{{ csrf_token() }}'
                 })
             })
             .then(response => {

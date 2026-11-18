@@ -61,6 +61,7 @@
                                 <td>
                                     <div class="btn-group" role="group">
                                         <form method="POST" action="{{ url_for('update_prescription_status', prescription_id=prescription.id) }}" class="d-inline">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <input type="hidden" name="prescription_id" value="{{ prescription.id }}">
                                             {% if prescription.status == 'pending' %}
                                             <button type="submit" name="status" value="dispensed" class="btn btn-sm btn-success">Mark Dispensed</button>

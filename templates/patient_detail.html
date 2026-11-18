@@ -134,17 +134,20 @@
                                 <div class="btn-group" role="group">
                                     {% if appointment.status == 'pending' %}
                                     <form action="{{ url_for('update_appointment') }}" method="post" class="d-inline">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
                                         <input type="hidden" name="status" value="confirmed">
                                         <button type="submit" class="btn btn-sm btn-success">Confirm</button>
                                     </form>
                                     <form action="{{ url_for('update_appointment') }}" method="post" class="d-inline">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
                                         <input type="hidden" name="status" value="cancelled">
                                         <button type="submit" class="btn btn-sm btn-danger">Cancel</button>
                                     </form>
                                     {% elif appointment.status == 'confirmed' %}
                                     <form action="{{ url_for('update_appointment') }}" method="post" class="d-inline">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <input type="hidden" name="appointment_id" value="{{ appointment.id }}">
                                         <input type="hidden" name="status" value="completed">
                                         <button type="submit" class="btn btn-sm btn-primary">Mark Completed</button>

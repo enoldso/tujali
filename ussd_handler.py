@@ -1,40 +1,67 @@
 import logging
-from models import Patient, Provider, Appointment, Message, HealthInfo
+import random
+from models import db, Patient, Provider, Appointment, Message, HealthInfo, UssdSession
 from datetime import datetime, timedelta
 import utils
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Session storage for USSD
-# This is used to keep track of user state between USSD requests
-# In production, this should be stored in a database or cache
-sessions = {}
+# USSD sessions are short-lived (a few minutes on the network); rows older than
+# this are pruned opportunistically.
+SESSION_MAX_AGE = timedelta(hours=6)
+
+
+def _prune_old_sessions():
+    cutoff = datetime.now() - SESSION_MAX_AGE
+    UssdSession.query.filter(UssdSession.updated_at < cutoff).delete(synchronize_session=False)
+
 
 def ussd_callback(session_id, service_code, phone_number, text):
     """
-    Process USSD request and return appropriate response
-    
-    Args:
-        session_id (str): Unique session identifier
-        service_code (str): USSD service code
-        phone_number (str): User's phone number
-        text (str): Current USSD text/input
-    
-    Returns:
-        str: USSD response with appropriate prefix
+    Process a USSD request and return the response text ("CON ..." / "END ...").
+
+    Session state lives in the ussd_sessions table so that every worker process
+    (and every server instance) sees the same state for a session.
     """
-    # Initialize session if needed
-    if session_id not in sessions:
-        sessions[session_id] = {
-            'phone_number': phone_number,
-            'state': 'start',
-            'language': 'en',  # Default language
-            'data': {}
-        }
-    
-    session = sessions[session_id]
-    
+    record = db.session.get(UssdSession, session_id)
+    if record is None:
+        record = UssdSession(session_id=session_id, phone_number=phone_number,
+                             state='start', language='en', data={})
+
+    session = {
+        'session_id': session_id,
+        'phone_number': record.phone_number,
+        'state': record.state,
+        'language': record.language,
+        'data': dict(record.data or {}),
+    }
+
+    try:
+        response = _process(session, text)
+    except Exception:
+        logger.exception('Unhandled USSD error')
+        db.session.rollback()
+        response = "END Sorry, an error occurred. Please try again."
+
+    try:
+        record.state = session['state']
+        record.language = session['language']
+        record.data = dict(session['data'])
+        record.updated_at = datetime.now()
+        db.session.add(record)
+        if random.random() < 0.01:
+            _prune_old_sessions()
+        db.session.commit()
+    except Exception:
+        logger.exception('Could not persist USSD session state')
+        db.session.rollback()
+
+    return response
+
+
+def _process(session, text):
+    """Route one USSD request given the (mutable) session dict."""
     # Check if we need to start over
     if text == '':
         session['state'] = 'start'
@@ -104,9 +131,10 @@ def ussd_callback(session_id, service_code, phone_number, text):
         else:
             # Unknown state, return to main menu
             return show_main_menu(session)
-    except Exception as e:
-        logger.error(f"Error processing USSD request: {e}")
-        
+    except Exception:
+        logger.exception("Error processing USSD request")
+        db.session.rollback()
+
         # Provide error messages in all supported languages
         if session['language'] == 'en':
             error_msg = "Sorry, an error occurred. Please try again."
@@ -248,7 +276,8 @@ def handle_main_menu(session, selection):
             return show_profile(session, patient)
         elif selection == '0':
             session['state'] = 'start'
-            return ussd_callback(session['session_id'], '', session['phone_number'], '')
+            session['data'] = {}
+            return _process(session, '')
         else:
             return respond(get_invalid_option_text(session))
     else:
@@ -259,7 +288,8 @@ def handle_main_menu(session, selection):
             return show_health_info_menu(session)
         elif selection == '0':
             session['state'] = 'start'
-            return ussd_callback(session['session_id'], '', session['phone_number'], '')
+            session['data'] = {}
+            return _process(session, '')
         else:
             return respond(get_invalid_option_text(session))
 
@@ -706,11 +736,13 @@ def handle_appointments(session, input_text):
                 if patient.coordinates:
                     providers = patient.find_nearby_providers(max_distance=50)
                     session['data']['using_location'] = True
-                else:
+                if not patient.coordinates or not providers:
+                    # No location, or nobody within range: offer every provider.
                     providers = Provider.get_all()
                     session['data']['using_location'] = False
                 
-                session['data']['available_providers'] = providers
+                # Store IDs only: session data is persisted as JSON between requests
+                session['data']['available_providers'] = [p.id for p in providers]
                 
                 if session['language'] == 'en':
                     if patient.coordinates:
@@ -753,14 +785,16 @@ def handle_appointments(session, input_text):
         try:
             selection = int(input_text)
             if 1 <= selection <= len(session['data']['available_providers']):
-                selected_provider = session['data']['available_providers'][selection - 1]
-                
-                # Create appointment
+                selected_provider = Provider.get_by_id(session['data']['available_providers'][selection - 1])
+                if selected_provider is None:
+                    return respond(get_invalid_option_text(session))
+
                 appointment = Appointment.create(
                     patient_id=patient.id,
                     provider_id=selected_provider.id,
                     date=session['data']['selected_date'],
-                    time=session['data']['selected_time']
+                    time=session['data']['selected_time'],
+                    source='ussd'
                 )
                 
                 # Show confirmation
