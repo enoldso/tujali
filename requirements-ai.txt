@@ -1,0 +1,4 @@
+# Only needed when USE_MOCK_AI=false (real AI-generated health content)
+-r requirements.txt
+openai>=1.69.0
+anthropic>=0.49.0

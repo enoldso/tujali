@@ -1,0 +1,10 @@
+.git
+.env
+__pycache__/
+*.pyc
+instance/
+.pytest_cache/
+tests/
+ussd-geo/
+attached_assets/
+*.log
