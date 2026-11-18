@@ -1,0 +1,39 @@
+{% extends 'layout_app.html' %}
+{% from 'macros.html' import field %}
+{% block title %}Profile{% endblock %}
+{% block page_title %}Profile{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card"><div class="card-body p-4">
+      <form method="post" novalidate>
+        {{ form.hidden_tag() }}
+        <div class="row">
+          {{ field(form.phone, class_='col-md-6', help='Booking alerts are sent here.') }}
+          {{ field(form.fee_kes, class_='col-md-6') }}
+          {{ field(form.county, class_='col-md-6') }}
+          {{ field(form.facility, class_='col-md-6') }}
+          {{ field(form.languages, class_='col-12') }}
+          {{ field(form.bio, class_='col-12') }}
+        </div>
+        <div class="d-flex flex-wrap gap-4">
+          {{ field(form.offers_phone) }}{{ field(form.offers_in_person) }}{{ field(form.accepting) }}
+        </div>
+        <button class="btn btn-primary">Save profile</button>
+      </form>
+    </div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card"><div class="card-body">
+      <div class="small-caps mb-3">How you appear on USSD</div>
+      <div class="ussd-dialog mb-3">{{ me.short_name }}, {{ me.county }}, KES{{ me.fee_kes }}</div>
+      <dl class="kv mb-0">
+        <dt>Specialty</dt><dd>{{ me.specialty_name }}</dd>
+        <dt>Licence</dt><dd>{{ me.license_number }}
+          {% if me.verified %}<span class="badge badge-completed ms-1">Verified</span>{% else %}<span class="badge badge-waitlist ms-1">Pending</span>{% endif %}</dd>
+        <dt>Email</dt><dd class="mb-0">{{ me.user.email }}</dd>
+      </dl>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

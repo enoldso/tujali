@@ -1,215 +1,129 @@
+import re
+
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField, SelectField, IntegerField, DecimalField, HiddenField, SelectMultipleField, BooleanField
-from wtforms.validators import DataRequired, Length, Email, Optional, NumberRange, EqualTo
+from wtforms import (BooleanField, IntegerField, PasswordField, SelectField, StringField,
+                     TextAreaField, TimeField)
+from wtforms.validators import (DataRequired, Email, EqualTo, Length, NumberRange, Optional,
+                                ValidationError)
+
+from models import Availability, HealthAlert, User
+from reference import COUNTIES, SPECIALTIES, SYNDROMES
+
+SPECIALTY_CHOICES = [(code, clinical) for code, clinical, _ in SPECIALTIES]
+COUNTY_CHOICES = [(c, c) for c in COUNTIES]
+
+
+def normalize_phone(value):
+    """Kenyan numbers to +2547XXXXXXXX / +2541XXXXXXXX. Returns None if invalid."""
+    digits = re.sub(r'[^\d+]', '', value or '')
+    if digits.startswith('+254'):
+        digits = digits[4:]
+    elif digits.startswith('254'):
+        digits = digits[3:]
+    elif digits.startswith('0'):
+        digits = digits[1:]
+    if re.fullmatch(r'[17]\d{8}', digits):
+        return '+254' + digits
+    return None
+
+
+def kenyan_phone(form, field):
+    if field.data:
+        normalized = normalize_phone(field.data)
+        if not normalized:
+            raise ValidationError('Enter a Kenyan mobile number, e.g. 0712 345 678.')
+        field.data = normalized
+
 
 class LoginForm(FlaskForm):
-    """Login form for healthcare providers"""
-    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=50)])
+    email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Password', validators=[DataRequired()])
-    submit = SubmitField('Login')
+    remember = BooleanField('Keep me signed in')
 
-class RegistrationForm(FlaskForm):
-    """Registration form for healthcare providers"""
-    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=50)])
-    email = StringField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Password', validators=[
-        DataRequired(), 
-        Length(min=8, message='Password must be at least 8 characters long')
-    ])
-    confirm_password = PasswordField('Confirm Password', validators=[
-        DataRequired(), 
-        EqualTo('password', message='Passwords must match')
-    ])
-    full_name = StringField('Full Name', validators=[DataRequired(), Length(min=2, max=100)])
-    specialization = SelectField('Specialization', choices=[
-        ('general', 'General Practitioner'),
-        ('pediatric', 'Pediatrician'),
-        ('internal', 'Internal Medicine'),
-        ('emergency', 'Emergency Medicine'),
-        ('family', 'Family Medicine'),
-        ('gynecology', 'Gynecology'),
-        ('dermatology', 'Dermatology'),
-        ('cardiology', 'Cardiology'),
-        ('orthopedic', 'Orthopedic'),
-        ('psychiatry', 'Psychiatry'),
-        ('other', 'Other')
-    ], validators=[DataRequired()])
-    license_number = StringField('Medical License Number', validators=[DataRequired(), Length(min=5, max=50)])
-    phone_number = StringField('Phone Number', validators=[DataRequired(), Length(min=10, max=15)])
-    location = StringField('Practice Location', validators=[DataRequired(), Length(min=2, max=100)])
-    years_experience = IntegerField('Years of Experience', validators=[DataRequired(), NumberRange(min=0, max=50)])
-    submit = SubmitField('Register')
 
-class MessageForm(FlaskForm):
-    """Form for sending messages to patients"""
-    content = TextAreaField('Message', validators=[DataRequired()])
-    submit = SubmitField('Send')
-
-class HealthInfoForm(FlaskForm):
-    """Form for adding health information"""
-    title = StringField('Title', validators=[DataRequired()])
-    content = TextAreaField('Content', validators=[DataRequired()])
-    language = SelectField('Language', choices=[('en', 'English'), ('sw', 'Swahili')], validators=[DataRequired()])
-    submit = SubmitField('Add Information')
-
-class HealthTipsForm(FlaskForm):
-    """Form for generating AI-powered health tips"""
-    patient_id = SelectField('Patient', validators=[DataRequired()])
-    custom_prompt = TextAreaField('Additional Context (Optional)', validators=[Optional()])
-    language = SelectField('Language', 
-                          choices=[('en', 'English'), 
-                                  ('sw', 'Swahili'), 
-                                  ('fr', 'French'), 
-                                  ('or', 'Oromo'),
-                                  ('so', 'Somali'),
-                                  ('am', 'Amharic')], 
+class JoinForm(FlaskForm):
+    """Specialist application. Accounts start unverified."""
+    name = StringField('Full name', validators=[DataRequired(), Length(2, 120)])
+    email = StringField('Email', validators=[DataRequired(), Email(), Length(max=255)])
+    phone = StringField('Mobile number (for booking alerts)', validators=[DataRequired(), kenyan_phone])
+    specialty = SelectField('Specialty', choices=SPECIALTY_CHOICES)
+    license_number = StringField('KMPDC licence number', validators=[DataRequired(), Length(3, 60)])
+    facility = StringField('Facility / clinic', validators=[Optional(), Length(max=150)])
+    county = SelectField('County', choices=COUNTY_CHOICES)
+    fee_kes = IntegerField('Consultation fee (KES)', default=500,
+                           validators=[DataRequired(), NumberRange(0, 20000)])
+    offers_phone = BooleanField('Phone consultations', default=True)
+    offers_in_person = BooleanField('In-person visits')
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=10)])
+    confirm = PasswordField('Confirm password', validators=[EqualTo('password', 'Passwords must match.')])
+    attest = BooleanField('I confirm these licence details are accurate and may be verified.',
                           validators=[DataRequired()])
-    submit = SubmitField('Generate Health Tips')
 
-class HealthEducationForm(FlaskForm):
-    """Form for generating AI-powered health education content"""
-    topic = StringField('Health Topic', validators=[DataRequired()])
-    language = SelectField('Language', 
-                          choices=[('en', 'English'), 
-                                  ('sw', 'Swahili'), 
-                                  ('fr', 'French'),
-                                  ('or', 'Oromo'),
-                                  ('so', 'Somali'),
-                                  ('am', 'Amharic')], 
-                          validators=[DataRequired()])
-    submit = SubmitField('Generate Content')
+    def validate_email(self, field):
+        if User.query.filter_by(email=field.data.strip().lower()).first():
+            raise ValidationError('An account with this email already exists.')
+
+    def validate_offers_in_person(self, field):
+        if not (field.data or self.offers_phone.data):
+            raise ValidationError('Offer at least one type of consultation.')
 
 
-class PrescriptionForm(FlaskForm):
-    """Form for creating prescriptions"""
-    patient_id = SelectField('Patient', validators=[DataRequired()])
-    appointment_id = SelectField('Appointment', validators=[Optional()])
-    medication_name = StringField('Medication Name', validators=[DataRequired()])
-    dosage = StringField('Dosage', validators=[DataRequired()])
-    frequency = StringField('Frequency', validators=[DataRequired()])
-    duration = StringField('Duration', validators=[DataRequired()])
-    instructions = TextAreaField('Instructions', validators=[DataRequired()])
-    delivery_method = SelectField('Delivery Method', 
-                                 choices=[('pickup', 'Physical Pickup'),
-                                         ('bike', 'Bike Delivery'),
-                                         ('drone', 'Drone Delivery')], 
-                                 validators=[DataRequired()])
-    delivery_address = TextAreaField('Delivery Address', validators=[Optional()])
-    submit = SubmitField('Create Prescription')
+class ProfileForm(FlaskForm):
+    phone = StringField('Mobile number', validators=[DataRequired(), kenyan_phone])
+    facility = StringField('Facility / clinic', validators=[Optional(), Length(max=150)])
+    county = SelectField('County', choices=COUNTY_CHOICES)
+    fee_kes = IntegerField('Consultation fee (KES)', validators=[DataRequired(), NumberRange(0, 20000)])
+    languages = StringField('Languages', validators=[DataRequired(), Length(max=100)])
+    bio = TextAreaField('Short bio', validators=[Optional(), Length(max=600)])
+    offers_phone = BooleanField('Phone consultations')
+    offers_in_person = BooleanField('In-person visits')
+    accepting = BooleanField('Accepting new bookings')
 
 
-class WalkInForm(FlaskForm):
-    """Form for registering walk-in patients"""
-    patient_id = SelectField('Patient', validators=[DataRequired()])
-    priority = SelectField('Priority', 
-                          choices=[('normal', 'Normal'),
-                                  ('urgent', 'Urgent'),
-                                  ('low', 'Low Priority')], 
-                          validators=[DataRequired()])
-    notes = TextAreaField('Notes/Reason for Visit', validators=[Optional()])
-    submit = SubmitField('Register Walk-In')
+class AvailabilityForm(FlaskForm):
+    weekday = SelectField('Day', coerce=int,
+                          choices=list(enumerate(Availability.WEEKDAYS)))
+    start_time = TimeField('From', validators=[DataRequired()])
+    end_time = TimeField('To', validators=[DataRequired()])
+    slot_minutes = SelectField('Slot length', coerce=int, default=20,
+                               choices=[(15, '15 min'), (20, '20 min'), (30, '30 min'),
+                                        (45, '45 min'), (60, '60 min')])
+
+    def validate_end_time(self, field):
+        if self.start_time.data and field.data and field.data <= self.start_time.data:
+            raise ValidationError('End time must be after the start time.')
 
 
-class QuickPatientForm(FlaskForm):
-    """Form for quickly adding new patients"""
-    phone_number = StringField('Phone Number', validators=[DataRequired()])
-    name = StringField('Full Name', validators=[DataRequired()])
-    age = IntegerField('Age', validators=[DataRequired(), NumberRange(min=0, max=120)])
-    gender = SelectField('Gender', 
-                        choices=[('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')], 
-                        validators=[DataRequired()])
-    location = StringField('Location', validators=[DataRequired()])
-    language = SelectField('Preferred Language', 
-                          choices=[('en', 'English'), ('sw', 'Swahili'), ('fr', 'French'),
-                                  ('or', 'Oromo'), ('so', 'Somali'), ('am', 'Amharic')], 
-                          validators=[DataRequired()])
-    submit = SubmitField('Add Patient')
+class ConsultationForm(FlaskForm):
+    clinical_notes = TextAreaField('Private clinical notes', validators=[Optional(), Length(max=4000)])
+    advice = TextAreaField('Advice for the patient (sent by SMS)', validators=[Optional(), Length(max=400)])
+    payment_status = SelectField('Payment', choices=[('unpaid', 'Unpaid'), ('paid', 'Paid'),
+                                                     ('waived', 'Waived')])
+    payment_ref = StringField('M-Pesa reference', validators=[Optional(), Length(max=40)])
 
 
-class LabTestForm(FlaskForm):
-    """Form for ordering lab tests"""
-    patient_id = SelectField('Patient', validators=[DataRequired()])
-    appointment_id = SelectField('Appointment', validators=[Optional()])
-    test_name = StringField('Test Name', validators=[DataRequired()])
-    test_type = SelectField('Test Type', 
-                           choices=[('blood', 'Blood Test'),
-                                   ('urine', 'Urine Test'),
-                                   ('imaging', 'Imaging'),
-                                   ('other', 'Other')], 
-                           validators=[DataRequired()])
-    cost = DecimalField('Cost (KSh)', validators=[DataRequired(), NumberRange(min=0)])
-    instructions = TextAreaField('Special Instructions', validators=[Optional()])
-    submit = SubmitField('Order Test')
+class AlertForm(FlaskForm):
+    title = StringField('Title', validators=[DataRequired(), Length(max=60)])
+    message_en = TextAreaField('Message (English)', validators=[DataRequired(), Length(max=320)])
+    message_sw = TextAreaField('Message (Kiswahili)', validators=[Optional(), Length(max=320)])
+    county = SelectField('Area', choices=[('', 'Nationwide')] + COUNTY_CHOICES)
+    syndrome = SelectField('Related illness', choices=[('', 'None')] +
+                           [(code, labels['en']) for code, labels, _ in SYNDROMES])
+    level = SelectField('Level', choices=[(lvl, lvl.title()) for lvl in HealthAlert.LEVELS])
+    expires_in_days = SelectField('Show for', coerce=int, default=14,
+                                  choices=[(3, '3 days'), (7, '1 week'), (14, '2 weeks'),
+                                           (30, '1 month'), (0, 'Until removed')])
+    send_sms = BooleanField('Also SMS registered patients in this area')
 
 
-class LabResultForm(FlaskForm):
-    """Form for recording lab results"""
-    lab_test_id = HiddenField('Lab Test ID', validators=[DataRequired()])
-    technician_name = StringField('Technician Name', validators=[DataRequired()])
-    notes = TextAreaField('Notes/Observations', validators=[Optional()])
-    submit = SubmitField('Save Results')
+class StaffForm(FlaskForm):
+    name = StringField('Full name', validators=[DataRequired(), Length(2, 120)])
+    email = StringField('Email', validators=[DataRequired(), Email(), Length(max=255)])
+    phone = StringField('Mobile number', validators=[Optional(), kenyan_phone])
+    role = SelectField('Role', choices=[('health_officer', 'Health officer'), ('admin', 'Administrator')])
+    organisation = StringField('Organisation', validators=[Optional(), Length(max=150)])
+    password = PasswordField('Temporary password', validators=[DataRequired(), Length(min=10)])
 
-
-class BillItemForm(FlaskForm):
-    """Form for adding items to a bill"""
-    item_type = SelectField('Item Type', 
-                           choices=[('consultation', 'Consultation'),
-                                   ('lab_test', 'Lab Test'),
-                                   ('prescription', 'Prescription'),
-                                   ('delivery', 'Delivery Fee')], 
-                           validators=[DataRequired()])
-    description = StringField('Description', validators=[DataRequired()])
-    amount = DecimalField('Amount (KSh)', validators=[DataRequired(), NumberRange(min=0)])
-    quantity = IntegerField('Quantity', validators=[DataRequired(), NumberRange(min=1)], default=1)
-    submit = SubmitField('Add Item')
-
-
-class PaymentRecordForm(FlaskForm):
-    """Form for recording payments"""
-    bill_id = SelectField('Bill', validators=[DataRequired()])
-    amount = DecimalField('Amount Paid (KSh)', validators=[DataRequired(), NumberRange(min=0)])
-    payment_method = SelectField('Payment Method', 
-                                choices=[('mpesa', 'M-Pesa'),
-                                        ('cash', 'Cash'),
-                                        ('insurance', 'Insurance')], 
-                                validators=[DataRequired()])
-    reference = StringField('Reference/Transaction ID', validators=[Optional()])
-    submit = SubmitField('Record Payment')
-
-class UserManagementForm(FlaskForm):
-    """Form for creating and managing users"""
-    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=50)])
-    email = StringField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=8)])
-    role = SelectField('Role', choices=[
-        ('provider', 'Healthcare Provider'),
-        ('finance', 'Finance Staff'),
-        ('lab_tech', 'Lab Technician'),
-        ('nurse', 'Nurse'),
-        ('receptionist', 'Receptionist'),
-        ('admin', 'Administrator')
-    ], validators=[DataRequired()])
-    department = SelectField('Department', choices=[
-        ('clinical', 'Clinical'),
-        ('finance', 'Finance'),
-        ('laboratory', 'Laboratory'),
-        ('pharmacy', 'Pharmacy'),
-        ('administration', 'Administration')
-    ], validators=[DataRequired()])
-    permissions = SelectMultipleField('Additional Permissions', choices=[
-        ('billing', 'Billing Access'),
-        ('payments', 'Payment Management'),
-        ('lab_tests', 'Lab Test Management'),
-        ('prescriptions', 'Prescription Management'),
-        ('user_management', 'User Management'),
-        ('reports', 'System Reports')
-    ])
-    submit = SubmitField('Create User')
-
-class DepartmentForm(FlaskForm):
-    """Form for managing departments"""
-    name = StringField('Department Name', validators=[DataRequired()])
-    description = TextAreaField('Description', validators=[Optional()])
-    head_user_id = SelectField('Department Head', validators=[Optional()])
-    active = BooleanField('Active', default=True)
-    submit = SubmitField('Save Department')
+    def validate_email(self, field):
+        if User.query.filter_by(email=field.data.strip().lower()).first():
+            raise ValidationError('An account with this email already exists.')

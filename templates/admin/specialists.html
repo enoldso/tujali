@@ -1,0 +1,46 @@
+{% extends 'layout_app.html' %}
+{% from 'macros.html' import empty %}
+{% block title %}Specialists{% endblock %}
+{% block page_title %}Specialists{% endblock %}
+{% block page_subtitle %}<div class="text-muted small">Check each licence on the KMPDC register before verifying. Verified specialists appear on USSD immediately.</div>{% endblock %}
+{% block content %}
+<div class="nav-tabs-tj mb-3">
+  <a class="{{ 'active' if view == 'pending' }}" href="{{ url_for('admin.specialists', view='pending') }}">Awaiting review ({{ counts.pending }})</a>
+  <a class="{{ 'active' if view == 'verified' }}" href="{{ url_for('admin.specialists', view='verified') }}">Verified ({{ counts.verified }})</a>
+  <a class="{{ 'active' if view == 'all' }}" href="{{ url_for('admin.specialists', view='all') }}">All</a>
+</div>
+<div class="card">
+  {% if specialists %}
+  <div class="table-responsive"><table class="table align-middle">
+    <thead><tr><th>Specialist</th><th>Specialty</th><th>Licence</th><th>Location</th><th>Offers</th><th>Fee</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for s in specialists %}
+    <tr>
+      <td><div class="fw-semibold text-dark">{{ s.display_name }}</div><div class="small text-muted">{{ s.user.email }} · {{ s.user.phone or '' }}</div></td>
+      <td>{{ s.specialty_name }}</td>
+      <td class="font-monospace small">{{ s.license_number }}</td>
+      <td>{{ s.county }}<div class="small text-muted">{{ s.facility or '' }}</div></td>
+      <td class="small">{{ s.modes_label }}<div class="text-muted">{{ s.availability|length }} weekly blocks</div></td>
+      <td class="text-nowrap">{{ s.fee_kes|kes }}</td>
+      <td>
+        {% if not s.user.is_active_account %}<span class="badge badge-cancelled">Suspended</span>
+        {% elif s.verified %}<span class="badge badge-completed">Verified</span>{% if not s.accepting %} <span class="badge badge-waitlist">Paused</span>{% endif %}
+        {% else %}<span class="badge badge-waitlist">Pending</span>{% endif %}
+      </td>
+      <td class="text-end text-nowrap">
+        <form method="post" class="d-inline" action="{{ url_for('admin.specialist_action', specialist_id=s.id, action='unverify' if s.verified else 'verify') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% if s.verified %}<button class="btn btn-sm btn-light">Unverify</button>{% else %}<button class="btn btn-sm btn-primary">Verify</button>{% endif %}
+        </form>
+        <form method="post" class="d-inline" action="{{ url_for('admin.specialist_action', specialist_id=s.id, action='reactivate' if not s.user.is_active_account else 'suspend') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-light">{{ 'Reactivate' if not s.user.is_active_account else 'Suspend' }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}{{ empty('patch-check', 'Nothing here.') }}{% endif %}
+</div>
+{% endblock %}

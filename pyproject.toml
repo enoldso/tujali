@@ -1,7 +1,7 @@
 [project]
 name = "tujali"
-version = "1.0.0"
-description = "USSD-based telehealth platform with a staff web dashboard"
+version = "2.0.0"
+description = "Specialist care and outbreak early warning over USSD"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -19,8 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ai = ["openai>=1.69.0", "anthropic>=0.49.0"]
-dev = ["pytest>=8.0", "requests>=2.32"]
+dev = ["pytest>=8.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

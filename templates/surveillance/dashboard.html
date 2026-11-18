@@ -1,0 +1,148 @@
+{% extends 'layout_app.html' %}
+{% from 'macros.html' import stat, empty %}
+{% block title %}Surveillance{% endblock %}
+{% block page_title %}Outbreak early warning{% endblock %}
+{% block page_subtitle %}<div class="text-muted small">Community illness reports from USSD · {{ county or 'All counties' }}{% if syndrome %} · {{ syndrome_labels[syndrome].en }}{% endif %}</div>{% endblock %}
+{% block page_actions %}
+<a class="btn btn-light btn-sm" href="{{ url_for('health.export', days=days, county=county or '', syndrome=syndrome or '') }}"><i class="bi bi-download me-1"></i> CSV</a>
+<a class="btn btn-primary btn-sm" href="{{ url_for('health.alerts') }}"><i class="bi bi-megaphone me-1"></i> New alert</a>
+{% endblock %}
+{% block content %}
+<form class="card mb-4" method="get"><div class="card-body d-flex flex-wrap gap-2 align-items-center">
+  <div class="nav-tabs-tj me-2">
+    {% for d in (7, 30, 90) %}
+    <a class="{{ 'active' if days == d }}" href="{{ url_for('health.dashboard', days=d, county=county or '', syndrome=syndrome or '') }}">{{ d }} days</a>
+    {% endfor %}
+  </div>
+  <input type="hidden" name="days" value="{{ days }}">
+  <select name="county" class="form-select form-select-sm w-auto" onchange="this.form.submit()" aria-label="County">
+    <option value="">All counties</option>
+    {% for c in counties %}<option value="{{ c }}" {{ 'selected' if c == county }}>{{ c }}</option>{% endfor %}
+  </select>
+  <select name="syndrome" class="form-select form-select-sm w-auto" onchange="this.form.submit()" aria-label="Illness">
+    <option value="">All illness types</option>
+    {% for code, labels, urgent in syndromes %}<option value="{{ code }}" {{ 'selected' if code == syndrome }}>{{ labels.en }}</option>{% endfor %}
+  </select>
+  {% if county or syndrome %}<a class="btn btn-sm btn-light" href="{{ url_for('health.dashboard', days=days) }}">Clear</a>{% endif %}
+</div></form>
+
+{% if data.change_pct is not none %}
+{% set change_html = '<span class="' ~ ('text-danger' if data.change_pct > 0 else 'text-success') ~ ' fw-semibold">' ~ ('+' if data.change_pct > 0 else '') ~ data.change_pct ~ '%</span> vs previous ' ~ days ~ ' days' %}
+{% else %}{% set change_html = None %}{% endif %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">{{ stat('{:,}'.format(data.cases), 'people reported ill', 'people', sub=change_html|safe if change_html else None) }}</div>
+  <div class="col-6 col-xl-3">{{ stat(signals|length, 'active signals', 'broadcast', 'danger' if signals else '') }}</div>
+  <div class="col-6 col-xl-3">{{ stat(data.danger_reports, 'reports with danger signs', 'exclamation-triangle', 'accent') }}</div>
+  <div class="col-6 col-xl-3">{{ stat(live_alerts|length, 'alerts live on USSD', 'megaphone', 'info', sub=data.counties_reporting ~ ' counties reporting') }}</div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-5">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h2><i class="bi bi-broadcast me-1 text-danger"></i> Signals this week</h2>
+        <span class="text-muted small">vs each county's last 3 weeks</span>
+      </div>
+      {% for s in signals %}
+      <div class="signal {{ s.level }}">
+        <div class="d-flex justify-content-between gap-2">
+          <div>
+            <div class="fw-bold text-dark">{{ s.syndrome_label }} · {{ s.county }}</div>
+            <div class="small text-muted">{{ s.reason }} · {{ s.cases }} people in {{ s.reports }} reports{% if s.danger %} · {{ s.danger }} with danger signs{% endif %}</div>
+            <div class="small mt-1"><span class="text-muted">Watch for:</span> {{ s.watch_for }}</div>
+          </div>
+          <span class="badge badge-{{ s.level }} align-self-start text-uppercase">{{ s.level }}</span>
+        </div>
+        <div class="mt-2">
+          {% if (s.county, s.syndrome) in alerted %}
+          <span class="badge badge-soft"><i class="bi bi-check2 me-1"></i>Alert live</span>
+          {% else %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('health.alerts', county=s.county, syndrome=s.syndrome) }}"><i class="bi bi-megaphone me-1"></i> Publish alert</a>
+          {% endif %}
+          <a class="btn btn-sm btn-light" href="{{ url_for('health.dashboard', days=30, county=s.county, syndrome=s.syndrome) }}">Investigate</a>
+        </div>
+      </div>
+      {% else %}
+      {{ empty('shield-check', 'No unusual activity this week.') }}
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-xl-7">
+    <div class="card h-100">
+      <div class="card-header"><h2>People reported ill per day</h2></div>
+      <div class="card-body">
+        {% if data.series %}<div class="chart-box"><canvas id="trend" aria-label="Daily reports by illness type"></canvas></div>
+        {% else %}{{ empty('graph-up', 'No reports in this period.') }}{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h2>Counties by illness type</h2><span class="text-muted small">people reported ill, last {{ days }} days</span>
+  </div>
+  {% if data.county_rows %}
+  <div class="table-responsive">
+    <table class="table heat align-middle">
+      <thead><tr><th>County</th>{% for code, labels, urgent in syndromes %}<th class="text-center">{{ labels.en }}</th>{% endfor %}<th class="text-center">Total</th></tr></thead>
+      <tbody>
+      {% for row in data.county_rows %}
+      <tr data-href="{{ url_for('health.dashboard', days=days, county=row.county) }}">
+        <td class="fw-semibold">{{ row.county }}</td>
+        {% for code, labels, urgent in syndromes %}
+        {% set v = row.get(code, 0) %}
+        {% set level = 0 if not v else ([5, 1 + (v * 4 // (data.heat_max or 1))]|min) %}
+        <td class="cell heat-{{ level }}">{{ v or '·' }}</td>
+        {% endfor %}
+        <td class="cell fw-bold">{{ row._total }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}{{ empty('map', 'No reports yet.') }}{% endif %}
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>Latest reports</h2></div>
+  {% if data.recent %}
+  <div class="table-responsive"><table class="table align-middle">
+    <thead><tr><th>When</th><th>County</th><th>Illness</th><th>People</th><th>Danger signs</th></tr></thead>
+    <tbody>
+    {% for r in data.recent %}
+    <tr><td class="text-muted">{{ r.created_at|ago }}</td><td>{{ r.county }}</td><td>{{ r.syndrome_label }}</td>
+      <td>{{ '4+' if r.people_affected >= 4 else r.people_affected }}</td>
+      <td>{% if r.danger_signs %}<span class="badge badge-high">Yes</span>{% else %}<span class="text-muted">No</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}{{ empty('inbox', 'No reports.') }}{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+{% if data.series %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const colours = {fever: '#e07a2f', respiratory: '#2563eb', diarrhoea: '#0e7c66', rash: '#c8322b',
+                   jaundice: '#d4a514', neuro: '#7c3aed', bleeding: '#9f1239', other: '#94a3b8'};
+  const labels = {{ data.labels|tojson }};
+  const series = {{ data.series|tojson }};
+  const names = {{ syndrome_labels|tojson }};
+  new Chart(document.getElementById('trend'), {
+    type: 'bar',
+    data: {
+      labels: labels.map(d => new Date(d).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'})),
+      datasets: Object.entries(series).map(([code, values]) => ({
+        label: names[code].en, data: values, backgroundColor: colours[code], borderRadius: 3, maxBarThickness: 18}))
+    },
+    options: {
+      maintainAspectRatio: false, interaction: {mode: 'index', intersect: false},
+      scales: {x: {stacked: true, grid: {display: false}, ticks: {maxTicksLimit: 10}},
+               y: {stacked: true, beginAtZero: true, ticks: {precision: 0}, grid: {color: '#eef2f1'}}},
+      plugins: {legend: {position: 'bottom', labels: {boxWidth: 10, usePointStyle: true}}}
+    }
+  });
+</script>
+{% endif %}
+{% endblock %}

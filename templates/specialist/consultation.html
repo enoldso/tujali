@@ -1,0 +1,66 @@
+{% extends 'layout_app.html' %}
+{% from 'macros.html' import field, status %}
+{% block title %}{{ c.reference }}{% endblock %}
+{% block page_title %}{{ c.patient.name }}{% endblock %}
+{% block page_subtitle %}<div class="text-muted small">{{ c.reference }} · {{ c.scheduled_at|when }} · {{ c.mode_label }} · {{ status(c.status) }}</div>{% endblock %}
+{% block page_actions %}
+<a class="btn btn-light btn-sm" href="{{ url_for('portal.consultations') }}"><i class="bi bi-arrow-left"></i></a>
+{% if c.status == 'booked' and c.mode == 'phone' and not c.patient.phone.startswith('deleted') %}
+<a class="btn btn-primary btn-sm" href="tel:{{ c.patient.phone }}"><i class="bi bi-telephone-fill me-1"></i> Call {{ c.patient.phone }}</a>
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card mb-4"><div class="card-body">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <div class="avatar lg">{{ c.patient.name[:1] }}</div>
+        <div><div class="fw-bold text-dark">{{ c.patient.name }}</div>
+          <div class="text-muted small">{{ c.patient.age or '?' }} years · {{ (c.patient.gender or 'not stated')|capitalize }}</div></div>
+      </div>
+      <dl class="kv mb-0">
+        <dt>Problem described</dt><dd>{{ c.complaint or 'No details given' }}</dd>
+        <dt>County</dt><dd>{{ c.patient.county or '—' }}</dd>
+        <dt>Language</dt><dd>{{ 'Kiswahili' if c.patient.language == 'sw' else 'English' }}</dd>
+        <dt>Fee</dt><dd>{{ c.fee_kes|kes }} {{ status(c.payment_status) }}</dd>
+        <dt>Booked</dt><dd class="mb-0">{{ c.created_at|ago }} via {{ c.source|upper }}</dd>
+      </dl>
+    </div></div>
+    <div class="card">
+      <div class="card-header"><h2>History with you</h2></div>
+      {% for h in history %}
+      <a class="queue-item" href="{{ url_for('portal.consultation', consultation_id=h.id) }}">
+        <div class="flex-grow-1"><div class="small fw-semibold text-dark">{{ h.scheduled_at|when('%d %b %Y') }}</div>
+          <div class="small text-muted text-truncate">{{ h.complaint or '' }}</div></div>{{ status(h.status) }}
+      </a>
+      {% else %}
+      <div class="card-body text-muted small">First consultation with this patient.</div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card"><div class="card-body p-4">
+      <form method="post" novalidate>
+        {{ form.hidden_tag() }}
+        {{ field(form.clinical_notes, help='Only you can see these notes.') }}
+        {{ field(form.advice, help='Plain language, up to 400 characters. Sent to the patient by SMS when you complete the consultation (or when you change it afterwards).') }}
+        <div class="row">
+          {{ field(form.payment_status, class_='col-md-6') }}
+          {{ field(form.payment_ref, class_='col-md-6') }}
+        </div>
+        <div class="d-flex flex-wrap gap-2 pt-2">
+          {% if c.status == 'booked' %}
+          <button class="btn btn-primary" name="action" value="complete"><i class="bi bi-check2-circle me-1"></i> Complete &amp; send advice</button>
+          <button class="btn btn-light" name="action" value="save">Save notes</button>
+          <button class="btn btn-light ms-auto" name="action" value="no_show">Patient didn't answer</button>
+          <button class="btn btn-outline-danger" name="action" value="cancel"
+                  onclick="return confirm('Cancel this consultation? The patient will get an SMS.')">Cancel</button>
+          {% else %}
+          <button class="btn btn-primary" name="action" value="save">Save</button>
+          {% endif %}
+        </div>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

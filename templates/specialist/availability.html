@@ -1,0 +1,59 @@
+{% extends 'layout_app.html' %}
+{% from 'macros.html' import field, empty %}
+{% block title %}Weekly hours{% endblock %}
+{% block page_title %}Weekly hours{% endblock %}
+{% block page_subtitle %}<div class="text-muted small">Patients can book any free slot in these hours, up to a week ahead.</div>{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><h2>Your hours</h2></div>
+      {% if me.availability %}
+      <div class="table-responsive"><table class="table align-middle">
+        <thead><tr><th>Day</th><th>Hours</th><th>Slot</th><th></th></tr></thead>
+        <tbody>
+        {% for b in me.availability %}
+        <tr>
+          <td class="fw-semibold">{{ b.weekday_name }}</td>
+          <td>{{ b.start_time.strftime('%H:%M') }} – {{ b.end_time.strftime('%H:%M') }}</td>
+          <td class="text-muted">{{ b.slot_minutes }} min</td>
+          <td class="text-end">
+            <form method="post" action="{{ url_for('portal.delete_availability', block_id=b.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-light" aria-label="Remove"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}
+      {{ empty('calendar-plus', 'No hours yet. Add your first block.') }}
+      {% endif %}
+    </div>
+    <div class="card mt-4"><div class="card-body">
+      <div class="small-caps mb-2">What patients see next</div>
+      {% for slot in preview %}
+      <span class="badge badge-soft me-1 mb-1 fs-6 fw-semibold">{{ format_when(slot) }}</span>
+      {% else %}
+      <span class="text-muted">No free slots in the next week.</span>
+      {% endfor %}
+    </div></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card"><div class="card-body p-4">
+      <h2 class="h6 mb-3">Add hours</h2>
+      <form method="post" novalidate>
+        {{ form.hidden_tag() }}
+        {{ field(form.weekday) }}
+        <div class="row">
+          {{ field(form.start_time, class_='col-6') }}
+          {{ field(form.end_time, class_='col-6') }}
+        </div>
+        {{ field(form.slot_minutes, help='One patient per slot.') }}
+        <button class="btn btn-primary w-100">Add</button>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

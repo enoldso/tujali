@@ -1,0 +1,138 @@
+{% extends 'layout_public.html' %}
+{% block content %}
+<section class="hero">
+  <div class="container">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-6">
+        <span class="badge badge-soft mb-3"><i class="bi bi-wifi-off me-1"></i> No internet or smartphone needed</span>
+        <h1 class="mb-3">A specialist doctor, on any phone.</h1>
+        <p class="lead mb-4">Tujali connects families in rural and low-income communities to dermatologists,
+          gynaecologists, neurologists and other specialists, using the simple USSD menus that work on every
+          mobile phone in Kenya.</p>
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+          <span class="dial-chip"><span>DIAL</span>{{ ussd_code }}</span>
+          {% if simulator_enabled %}
+          <a class="btn btn-light" href="{{ url_for('public.simulator') }}"><i class="bi bi-phone me-1"></i> Try it in your browser</a>
+          {% endif %}
+        </div>
+        <div class="d-flex flex-wrap gap-4 text-muted small">
+          <span><i class="bi bi-translate me-1 text-success"></i> English &amp; Kiswahili</span>
+          <span><i class="bi bi-telephone-inbound me-1 text-success"></i> The doctor calls you</span>
+          <span><i class="bi bi-chat-text me-1 text-success"></i> Advice by SMS</span>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="phone-status"><span>Safaricom</span><span>12:30</span></div>
+            <div class="ussd-dialog">Tujali, Akinyi
+1. See a specialist
+2. My appointments
+3. Report illness
+4. Health alerts
+5. Emergency help
+6. My account</div>
+            <div class="ussd-actions"><input value="1" aria-label="Reply" readonly><button class="btn-accent">Send</button></div>
+            <div class="keypad" aria-hidden="true">
+              {% for k in ['1','2','3','4','5','6','7','8','9','*','0','#'] %}<button tabindex="-1">{{ k }}</button>{% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section pt-4">
+  <div class="container">
+    <div class="row g-3">
+      <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="stat-value">{{ '{:,}'.format(stats.patients) }}</div><div class="stat-label">people registered</div></div></div></div>
+      <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="stat-value">{{ '{:,}'.format(stats.consultations) }}</div><div class="stat-label">specialist consultations</div></div></div></div>
+      <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="stat-value">{{ stats.specialists }}</div><div class="stat-label">verified specialists</div></div></div></div>
+      <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="stat-value">{{ '{:,}'.format(stats.reports) }}</div><div class="stat-label">community illness reports</div></div></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="how">
+  <div class="container">
+    <div class="row g-5">
+      <div class="col-lg-5">
+        <p class="small-caps mb-2">How it works</p>
+        <h2 class="section-title mb-3">From a basic phone to a specialist in four steps</h2>
+        <p class="text-muted">Most specialists work in a few big towns. Tujali brings them to the people who
+          need them most, without data bundles, apps or travel for a first consultation.</p>
+      </div>
+      <div class="col-lg-7">
+        {% set steps = [
+          ('Dial ' ~ ussd_code, 'Choose English or Kiswahili and register once with your name, age and county.'),
+          ('Say what is wrong', "Pick the kind of help you need, like Skin or Women's health, and describe the problem in a few words."),
+          ('Pick a doctor and a time', 'Choose a phone consultation or an in-person visit near you. You get an SMS with your booking reference.'),
+          ('Talk to the specialist', 'The doctor calls you at the booked time. Their advice comes to you by SMS, and you can book a follow-up from the same menu.')] %}
+        {% for title, text in steps %}
+        <div class="d-flex gap-3 mb-4">
+          <div class="step-num">{{ loop.index }}</div>
+          <div><h3 class="h5 mb-1">{{ title }}</h3><p class="text-muted mb-0">{{ text }}</p></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <h3 class="h5 mt-4 mb-3">Specialists you can reach</h3>
+    <div class="row g-3">
+      {% for code, clinical, labels in specialties %}
+      <div class="col-6 col-md-4 col-lg-3">
+        <div class="specialty-tile"><strong>{{ labels.en }}</strong><span class="text-muted small">{{ clinical }} · {{ labels.sw }}</span></div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section band-dark" id="organisations">
+  <div class="container">
+    <div class="row g-5 align-items-center">
+      <div class="col-lg-5">
+        <p class="small-caps mb-2" style="color:#7fd1bd">For county health teams &amp; NGOs</p>
+        <h2 class="section-title mb-3">See outbreaks coming, days earlier</h2>
+        <p>Anyone can report illness at home from the Tujali menu. Reports are grouped into warning signs
+          like fever, diarrhoea or rash with fever, and mapped by county. Unusual rises are flagged automatically,
+          so teams can act before an outbreak spreads.</p>
+        <a class="btn btn-accent mt-2" href="{{ url_for('auth.login') }}">Open the surveillance dashboard</a>
+      </div>
+      <div class="col-lg-7">
+        <div class="row g-3">
+          {% set features = [
+            ('activity', 'Early-warning signals', 'Each county is compared with its own recent baseline. Red-flag signs like unusual bleeding are flagged at once.'),
+            ('megaphone', 'Alerts back to the community', 'Publish prevention messages in English and Kiswahili. They show on USSD and can be sent by SMS to registered people in that county.'),
+            ('shield-lock', 'Privacy by design', 'Reports carry no names or phone numbers. A salted hash only stops repeat reports from skewing the numbers.'),
+            ('bar-chart', 'Unmet demand', 'See which specialties people ask for but cannot get, by county, to guide recruitment and outreach.')] %}
+          {% for icon, title, text in features %}
+          <div class="col-sm-6">
+            <div class="feature-icon" style="background:rgba(255,255,255,.08);color:#7fd1bd"><i class="bi bi-{{ icon }}"></i></div>
+            <h3 class="h6">{{ title }}</h3><p class="small mb-0">{{ text }}</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="card"><div class="card-body p-4 p-lg-5">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+          <h2 class="section-title mb-2">Are you a specialist?</h2>
+          <p class="text-muted mb-0">Give a few hours a week by phone, set your own fee, and reach patients who would
+            otherwise travel for days. We verify your KMPDC licence before you go live.</p>
+        </div>
+        <div class="col-lg-4 text-lg-end">
+          <a class="btn btn-primary btn-lg" href="{{ url_for('public.join') }}">Join Tujali</a>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</section>
+{% endblock %}

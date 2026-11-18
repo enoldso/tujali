@@ -1,0 +1,34 @@
+{% extends 'layout_app.html' %}
+{% from 'macros.html' import status, empty %}
+{% block title %}Consultations{% endblock %}
+{% block page_title %}Consultations{% endblock %}
+{% block content %}
+<div class="nav-tabs-tj mb-3">
+  {% for key, label in [('upcoming', 'Upcoming'), ('completed', 'Completed'), ('missed', 'Cancelled & no-shows'), ('all', 'All')] %}
+  <a class="{{ 'active' if view == key }}" href="{{ url_for('portal.consultations', view=key) }}">{{ label }}</a>
+  {% endfor %}
+</div>
+<div class="card">
+  {% if consultations %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead><tr><th>When</th><th>Patient</th><th>Problem</th><th>Type</th><th>Status</th><th>Payment</th></tr></thead>
+      <tbody>
+      {% for c in consultations %}
+      <tr data-href="{{ url_for('portal.consultation', consultation_id=c.id) }}">
+        <td class="text-nowrap fw-semibold">{{ c.scheduled_at|when }}</td>
+        <td>{{ c.patient.name }}<div class="small text-muted">{{ c.patient.county }}</div></td>
+        <td class="text-muted small" style="max-width:280px">{{ c.complaint or '—' }}</td>
+        <td class="small">{{ c.mode_label }}</td>
+        <td>{{ status(c.status) }}</td>
+        <td>{{ status(c.payment_status) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  {{ empty('inbox', 'No consultations here.') }}
+  {% endif %}
+</div>
+{% endblock %}

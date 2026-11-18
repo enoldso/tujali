@@ -1,0 +1,78 @@
+{% extends 'layout_app.html' %}
+{% from 'macros.html' import stat, status, empty %}
+{% block title %}Today{% endblock %}
+{% block page_title %}Good {{ 'morning' if now_hour < 12 else ('afternoon' if now_hour < 17 else 'evening') }}, {{ me.display_name }}{% endblock %}
+{% block page_subtitle %}<div class="text-muted small">{{ me.specialty_name }} · {{ me.facility or me.county }}</div>{% endblock %}
+{% block page_actions %}<a class="btn btn-light btn-sm" href="{{ url_for('portal.availability') }}"><i class="bi bi-calendar-week me-1"></i> Hours</a>{% endblock %}
+{% block content %}
+{% if not me.verified %}
+<div class="page-banner warning mb-4"><i class="bi bi-hourglass-split"></i>
+  <div><strong>Your licence is being verified.</strong> Patients will see you on USSD once an administrator approves
+    {{ me.license_number }}. Meanwhile, add your weekly hours so you're ready.</div></div>
+{% elif not me.accepting %}
+<div class="page-banner info mb-4"><i class="bi bi-pause-circle"></i>
+  <div><strong>New bookings are paused.</strong> Existing appointments are unchanged. <a href="{{ url_for('portal.profile') }}">Resume bookings</a></div></div>
+{% elif not me.availability %}
+<div class="page-banner warning mb-4"><i class="bi bi-calendar-x"></i>
+  <div><strong>You have no weekly hours yet,</strong> so patients can't book you. <a href="{{ url_for('portal.availability') }}">Add your hours</a></div></div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">{{ stat(today|length, 'consultations today', 'telephone') }}</div>
+  <div class="col-6 col-xl-3">{{ stat(stats.upcoming, 'upcoming bookings', 'calendar-check', 'info') }}</div>
+  <div class="col-6 col-xl-3">{{ stat(stats.completed, 'completed this month', 'check2-circle') }}</div>
+  <div class="col-6 col-xl-3">{{ stat(stats.earned|kes, 'paid this month', 'cash-coin', 'accent', sub=(stats.no_shows ~ ' no-shows') if stats.no_shows else None) }}</div>
+</div>
+
+{% if overdue %}
+<div class="page-banner danger mb-4"><i class="bi bi-exclamation-octagon"></i>
+  <div><strong>{{ overdue|length }} past consultation{{ 's' if overdue|length != 1 }} still open.</strong>
+    Mark them completed or as no-shows so patients get their advice.
+    {% for c in overdue[:3] %}<a class="ms-2" href="{{ url_for('portal.consultation', consultation_id=c.id) }}">{{ c.reference }}</a>{% endfor %}</div></div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h2>Today's queue</h2><span class="text-muted small">{{ today|length }} booked</span>
+      </div>
+      {% for c in today %}
+      <a class="queue-item" href="{{ url_for('portal.consultation', consultation_id=c.id) }}">
+        <div class="queue-time">{{ c.scheduled_at.strftime('%H:%M') }}<small>{{ c.mode_label }}</small></div>
+        <div class="flex-grow-1 min-w-0">
+          <div class="fw-semibold text-dark">{{ c.patient.name }} <span class="text-muted fw-normal small">· {{ c.patient.age or '?' }}{{ (c.patient.gender or '')[:1]|upper }} · {{ c.patient.county }}</span></div>
+          <div class="text-muted small text-truncate">{{ c.complaint or 'No details given' }}</div>
+        </div>
+        <i class="bi bi-chevron-right text-muted"></i>
+      </a>
+      {% else %}
+      {{ empty('cup-hot', 'No consultations today.') }}
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card mb-4">
+      <div class="card-header"><h2>Coming up</h2></div>
+      {% for c in upcoming %}
+      <a class="queue-item" href="{{ url_for('portal.consultation', consultation_id=c.id) }}">
+        <div class="queue-time">{{ c.scheduled_at.strftime('%a') }}<small>{{ c.scheduled_at.strftime('%d %b %H:%M') }}</small></div>
+        <div class="flex-grow-1 min-w-0"><div class="fw-semibold text-dark text-truncate">{{ c.patient.name }}</div>
+          <div class="text-muted small text-truncate">{{ c.complaint or '' }}</div></div>
+      </a>
+      {% else %}
+      {{ empty('calendar', 'Nothing booked yet.') }}
+      {% endfor %}
+    </div>
+    <div class="card"><div class="card-body">
+      <div class="small-caps mb-2">Next free slot on USSD</div>
+      {% if next_slot and me.is_bookable %}
+      <div class="h5 mb-1">{{ next_slot|when }}</div>
+      <div class="text-muted small">Patients see your {{ me.modes_label|lower }} consultations at {{ me.fee_kes|kes }}.</div>
+      {% else %}
+      <div class="text-muted">Not bookable right now.</div>
+      {% endif %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}

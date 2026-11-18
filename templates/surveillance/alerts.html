@@ -1,0 +1,61 @@
+{% extends 'layout_app.html' %}
+{% from 'macros.html' import field, empty %}
+{% block title %}Health alerts{% endblock %}
+{% block page_title %}Health alerts{% endblock %}
+{% block page_subtitle %}<div class="text-muted small">Shown under "Health alerts" on USSD for the chosen county, and optionally sent by SMS.</div>{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-xl-5">
+    <div class="card"><div class="card-body p-4">
+      <h2 class="h6 mb-3">Publish an alert</h2>
+      <form method="post" novalidate>
+        {{ form.hidden_tag() }}
+        {{ field(form.title, help='Shown in the USSD list. Keep it under 40 characters.') }}
+        {{ field(form.message_en, help='Up to 320 characters. Say what to do, not just what is happening.') }}
+        {{ field(form.message_sw, help='Kiswahili speakers see this version.') }}
+        <div class="row">
+          {{ field(form.county, class_='col-sm-6') }}
+          {{ field(form.syndrome, class_='col-sm-6') }}
+          {{ field(form.level, class_='col-sm-6') }}
+          {{ field(form.expires_in_days, class_='col-sm-6') }}
+        </div>
+        {{ field(form.send_sms) }}
+        <button class="btn btn-primary w-100"><i class="bi bi-megaphone me-1"></i> Publish</button>
+      </form>
+    </div></div>
+  </div>
+  <div class="col-xl-7">
+    <div class="card">
+      <div class="card-header"><h2>All alerts</h2></div>
+      {% for a in alerts %}
+      <div class="p-3 px-4 border-bottom">
+        <div class="d-flex justify-content-between gap-3">
+          <div>
+            <div class="fw-bold text-dark">{{ a.title }}</div>
+            <div class="small text-muted">{{ a.county or 'Nationwide' }}{% if a.syndrome %} · {{ syndrome_labels[a.syndrome].en }}{% endif %}
+              · by {{ a.created_by.name if a.created_by else 'system' }} {{ a.created_at|ago }}
+              {% if a.sms_recipients %} · SMS to {{ a.sms_recipients }}{% endif %}</div>
+          </div>
+          <div class="text-end flex-shrink-0">
+            <span class="badge badge-{{ a.level }} text-uppercase">{{ a.level }}</span>
+            {% if a.is_live %}<span class="badge badge-completed">Live</span>{% else %}<span class="badge badge-cancelled">Ended</span>{% endif %}
+          </div>
+        </div>
+        <p class="small mb-2 mt-2">{{ a.message_en }}</p>
+        {% if a.is_live %}
+        <div class="d-flex align-items-center gap-3">
+          <span class="small text-muted">{% if a.expires_at %}Until {{ a.expires_at|when('%d %b %Y') }}{% else %}No end date{% endif %}</span>
+          <form method="post" action="{{ url_for('health.end_alert', alert_id=a.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-light">End alert</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      {{ empty('megaphone', 'No alerts yet.') }}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,106 @@
+{% extends 'layout_public.html' %}
+{% block title %}USSD simulator · Tujali{% endblock %}
+{% block content %}
+<div class="container py-5">
+  <div class="row g-5 align-items-start">
+    <div class="col-lg-5">
+      <p class="small-caps mb-2">Demo</p>
+      <h1 class="h2 mb-3">Try Tujali as a patient</h1>
+      <p class="text-muted">This phone talks to the real USSD service, exactly like Africa's Talking does.
+        Bookings, reports and SMS messages are saved in this environment's database.</p>
+      <div class="card mt-4"><div class="card-body">
+        <label class="form-label" for="phone">Phone number</label>
+        <input id="phone" class="form-control mb-2" value="+254712000001">
+        <div class="form-text mb-3">+254712000001 is a registered demo patient (Akinyi, Kisumu).
+          Use any other number to try registration.</div>
+        <button id="newNumber" class="btn btn-light btn-sm"><i class="bi bi-shuffle me-1"></i> Use a new random number</button>
+      </div></div>
+      <div class="small text-muted mt-3">
+        <strong>Tips:</strong> <code>0</code> goes back, <code>00</code> returns to the main menu and <code>9</code> shows more options.
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-status"><span>Tujali demo</span><span id="clock"></span></div>
+          <div id="screen" class="ussd-dialog">Press <strong>Dial</strong> to call {{ ussd_code }}</div>
+          <form id="replyForm" class="ussd-actions" autocomplete="off">
+            <input id="reply" aria-label="Reply" placeholder="Reply" disabled>
+            <button id="send" class="btn-accent" type="submit" disabled>Send</button>
+          </form>
+          <div class="keypad">
+            {% for k in ['1','2','3','4','5','6','7','8','9','*','0','#'] %}<button type="button" data-key="{{ k }}">{{ k }}</button>{% endfor %}
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button id="dial" type="button" class="btn btn-accent flex-grow-1"><i class="bi bi-telephone-fill me-1"></i> Dial {{ ussd_code }}</button>
+            <button id="hangup" type="button" class="btn btn-danger" disabled aria-label="Hang up"><i class="bi bi-telephone-x-fill"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const screen = document.getElementById('screen');
+  const reply = document.getElementById('reply');
+  const send = document.getElementById('send');
+  const dial = document.getElementById('dial');
+  const hangup = document.getElementById('hangup');
+  const phone = document.getElementById('phone');
+  let sessionId = null, text = '';
+
+  function tick() { document.getElementById('clock').textContent = new Date().toTimeString().slice(0, 5); }
+  tick(); setInterval(tick, 30000);
+
+  function setActive(active) {
+    reply.disabled = send.disabled = hangup.disabled = !active;
+    dial.disabled = active;
+    if (active) reply.focus();
+  }
+
+  async function request(input) {
+    const body = new URLSearchParams({ sessionId, phoneNumber: phone.value.trim(),
+                                       serviceCode: '{{ ussd_code }}', text: input });
+    screen.textContent = '…';
+    try {
+      const res = await fetch('{{ url_for("ussd") }}', { method: 'POST', body });
+      const out = await res.text();
+      const ended = out.startsWith('END');
+      screen.textContent = out.replace(/^(CON|END) /, '');
+      screen.classList.toggle('ended', ended);
+      setActive(!ended);
+      if (ended) sessionId = null;
+    } catch (e) {
+      screen.textContent = 'Connection problem. Try again.';
+      setActive(false);
+    }
+  }
+
+  dial.addEventListener('click', function () {
+    sessionId = 'sim-' + Math.random().toString(36).slice(2);
+    text = '';
+    request('');
+  });
+  hangup.addEventListener('click', function () {
+    sessionId = null; screen.textContent = 'Call ended.'; screen.classList.remove('ended'); setActive(false);
+  });
+  document.getElementById('replyForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const value = reply.value.trim();
+    if (!sessionId || !value) return;
+    text = text ? text + '*' + value : value;
+    reply.value = '';
+    request(text);
+  });
+  document.querySelectorAll('[data-key]').forEach(function (b) {
+    b.addEventListener('click', function () { if (!reply.disabled) { reply.value += b.dataset.key; reply.focus(); } });
+  });
+  document.getElementById('newNumber').addEventListener('click', function () {
+    phone.value = '+2547' + String(Math.floor(10000000 + Math.random() * 89999999));
+  });
+})();
+</script>
+{% endblock %}

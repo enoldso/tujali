@@ -1,0 +1,45 @@
+{% extends 'layout_app.html' %}
+{% from 'macros.html' import field %}
+{% block title %}Staff accounts{% endblock %}
+{% block page_title %}Staff accounts{% endblock %}
+{% block page_subtitle %}<div class="text-muted small">Specialists sign up themselves at /join. Create health officer and administrator accounts here.</div>{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-xl-8">
+    <div class="card"><div class="table-responsive"><table class="table align-middle">
+      <thead><tr><th>Name</th><th>Role</th><th>Organisation</th><th>Last sign in</th><th></th></tr></thead>
+      <tbody>
+      {% for u in staff %}
+      <tr>
+        <td><div class="d-flex align-items-center gap-2"><div class="avatar">{{ u.initials }}</div>
+          <div><div class="fw-semibold text-dark">{{ u.name }}</div><div class="small text-muted">{{ u.email }}</div></div></div></td>
+        <td>{{ u.role_label }}</td>
+        <td class="small">{{ u.organisation or (u.specialist.facility if u.specialist else '') or '—' }}</td>
+        <td class="small text-muted">{{ u.last_login_at|ago if u.last_login_at else 'Never' }}</td>
+        <td class="text-end">
+          {% if u.id != current_user.id %}
+          <form method="post" action="{{ url_for('admin.toggle_user', user_id=u.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-light">{{ 'Deactivate' if u.is_active_account else 'Reactivate' }}</button>
+          </form>
+          {% else %}<span class="small text-muted">You</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div></div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card"><div class="card-body p-4">
+      <h2 class="h6 mb-3">Add a staff account</h2>
+      <form method="post" novalidate>
+        {{ form.hidden_tag() }}
+        {{ field(form.name) }}{{ field(form.email) }}{{ field(form.phone) }}
+        {{ field(form.role) }}{{ field(form.organisation, help='e.g. Kisumu County Department of Health') }}
+        {{ field(form.password, help='At least 10 characters. Share it securely.') }}
+        <button class="btn btn-primary w-100">Create account</button>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

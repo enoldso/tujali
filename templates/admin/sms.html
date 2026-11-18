@@ -1,0 +1,27 @@
+{% extends 'layout_app.html' %}
+{% from 'macros.html' import empty %}
+{% block title %}SMS log{% endblock %}
+{% block page_title %}SMS log{% endblock %}
+{% block page_subtitle %}<div class="text-muted small">
+  {% if backend == 'console' %}Development mode: messages are recorded here but not sent. Set SMS_BACKEND=africastalking to send.
+  {% else %}Sending through Africa's Talking.{% endif %}</div>{% endblock %}
+{% block content %}
+<div class="card">
+  {% if messages %}
+  <div class="table-responsive"><table class="table align-middle">
+    <thead><tr><th>When</th><th>To</th><th>Purpose</th><th>Message</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for m in messages %}
+    <tr>
+      <td class="text-nowrap text-muted small">{{ m.created_at|when }}</td>
+      <td class="font-monospace small">{{ m.phone[:-4] }}****</td>
+      <td class="small">{{ m.purpose or '—' }}</td>
+      <td class="small" style="max-width:520px">{{ m.body }}{% if m.error %}<div class="text-danger">{{ m.error }}</div>{% endif %}</td>
+      <td><span class="badge {{ 'badge-completed' if m.status == 'sent' else ('badge-high' if m.status == 'failed' else 'badge-cancelled') }}">{{ m.status }}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}{{ empty('chat', 'No messages yet.') }}{% endif %}
+</div>
+{% endblock %}

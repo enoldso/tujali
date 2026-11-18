@@ -5,6 +5,4 @@ __pycache__/
 instance/
 .pytest_cache/
 tests/
-ussd-geo/
-attached_assets/
 *.log

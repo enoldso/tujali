@@ -1,0 +1,90 @@
+{% extends 'layout_app.html' %}
+{% from 'macros.html' import stat, empty %}
+{% block title %}Overview{% endblock %}
+{% block page_title %}Service overview{% endblock %}
+{% block page_actions %}<a class="btn btn-primary btn-sm" href="{{ url_for('admin.specialists') }}"><i class="bi bi-patch-check me-1"></i> Review specialists{% if stats.pending %} ({{ stats.pending }}){% endif %}</a>{% endblock %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">{{ stat('{:,}'.format(stats.patients), 'people registered', 'people', sub='+' ~ stats.new_patients ~ ' this week') }}</div>
+  <div class="col-6 col-xl-3">{{ stat(stats.bookings_week, 'bookings this week', 'calendar-check', 'info',
+      sub=(stats.completion_rate ~ '% of consultations completed') if stats.completion_rate is not none else None) }}</div>
+  <div class="col-6 col-xl-3">{{ stat(stats.verified, 'verified specialists', 'patch-check', '', sub=(stats.pending ~ ' awaiting review') if stats.pending else None) }}</div>
+  <div class="col-6 col-xl-3">{{ stat(stats.waitlist, 'people waiting for a specialist', 'hourglass-split', 'accent', sub=stats.reports_week ~ ' illness reports this week') }}</div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-7">
+    <div class="card h-100">
+      <div class="card-header"><h2>Bookings per day</h2></div>
+      <div class="card-body"><div class="chart-box"><canvas id="bookings"></canvas></div></div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card h-100">
+      <div class="card-header"><h2>Bookings by specialty (30 days)</h2></div>
+      <div class="card-body"><div class="chart-box"><canvas id="specialties"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card h-100">
+      <div class="card-header">
+        <h2>Unmet demand</h2>
+        <div class="small text-muted mt-1">People who asked for a specialist when none was available (last 90 days). Recruit here first.</div>
+      </div>
+      {% if unmet %}
+      <div class="table-responsive"><table class="table align-middle">
+        <thead><tr><th>Specialty</th><th>County</th><th>Type</th><th class="text-end">Requests</th></tr></thead>
+        <tbody>{% for row in unmet %}
+        <tr><td class="fw-semibold">{{ row.specialty }}</td><td>{{ row.county }}</td><td class="text-muted">{{ row.mode }}</td>
+          <td class="text-end"><span class="badge badge-waitlist">{{ row.requests }}</span></td></tr>
+        {% endfor %}</tbody>
+      </table></div>
+      {% else %}{{ empty('emoji-smile', 'Every request found a specialist.') }}{% endif %}
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card mb-4">
+      <div class="card-header d-flex justify-content-between"><h2>Awaiting verification</h2><a class="small" href="{{ url_for('admin.specialists') }}">All</a></div>
+      {% for s in pending %}
+      <div class="queue-item">
+        <div class="avatar">{{ s.user.initials }}</div>
+        <div class="flex-grow-1 min-w-0"><div class="fw-semibold text-dark text-truncate">{{ s.display_name }}</div>
+          <div class="small text-muted">{{ s.specialty_name }} · {{ s.county }} · {{ s.license_number }}</div></div>
+        <form method="post" action="{{ url_for('admin.specialist_action', specialist_id=s.id, action='verify') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-primary">Verify</button>
+        </form>
+      </div>
+      {% else %}{{ empty('check2-all', 'No applications waiting.') }}{% endfor %}
+    </div>
+    <div class="card">
+      <div class="card-header d-flex justify-content-between"><h2>Recent SMS</h2><a class="small" href="{{ url_for('admin.sms_log') }}">Log</a></div>
+      {% for m in sms %}
+      <div class="px-4 py-2 border-bottom small"><span class="text-muted">{{ m.created_at|ago }} · {{ m.purpose }}</span><div class="text-truncate">{{ m.body }}</div></div>
+      {% else %}{{ empty('chat', 'No messages yet.') }}{% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  new Chart(document.getElementById('bookings'), {
+    type: 'line',
+    data: {labels: {{ bookings_chart.labels|tojson }}, datasets: [{label: 'Bookings', data: {{ bookings_chart['values']|tojson }},
+      borderColor: '#0e7c66', backgroundColor: 'rgba(14,124,102,.12)', fill: true, cubicInterpolationMode: 'monotone', pointRadius: 0}]},
+    options: {maintainAspectRatio: false, plugins: {legend: {display: false}},
+      scales: {x: {grid: {display: false}, ticks: {maxTicksLimit: 8}}, y: {beginAtZero: true, ticks: {precision: 0}, grid: {color: '#eef2f1'}}}}
+  });
+  const spec = {{ specialty_chart|tojson }};
+  new Chart(document.getElementById('specialties'), {
+    type: 'bar',
+    data: {labels: spec.map(s => s[0]), datasets: [{data: spec.map(s => s[1]), backgroundColor: '#0e7c66', borderRadius: 6}]},
+    options: {indexAxis: 'y', maintainAspectRatio: false, plugins: {legend: {display: false}},
+      scales: {x: {beginAtZero: true, ticks: {precision: 0}, grid: {color: '#eef2f1'}}, y: {grid: {display: false}}}}
+  });
+</script>
+{% endblock %}

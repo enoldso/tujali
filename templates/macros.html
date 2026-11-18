@@ -1,0 +1,37 @@
+{% macro field(f, label=None, help=None, class_='') -%}
+  <div class="mb-3 {{ class_ }}">
+    {% if f.type == 'BooleanField' %}
+      <div class="form-check">
+        {{ f(class_='form-check-input' + (' is-invalid' if f.errors else '')) }}
+        <label class="form-check-label" for="{{ f.id }}">{{ label or f.label.text }}</label>
+      </div>
+    {% else %}
+      <label class="form-label" for="{{ f.id }}">{{ label or f.label.text }}</label>
+      {% if f.type == 'SelectField' %}
+        {{ f(class_='form-select' + (' is-invalid' if f.errors else '')) }}
+      {% elif f.type == 'TextAreaField' %}
+        {{ f(class_='form-control' + (' is-invalid' if f.errors else ''), rows=4) }}
+      {% else %}
+        {{ f(class_='form-control' + (' is-invalid' if f.errors else '')) }}
+      {% endif %}
+    {% endif %}
+    {% if help %}<div class="form-text">{{ help }}</div>{% endif %}
+    {% for error in f.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+  </div>
+{%- endmacro %}
+
+{% macro stat(value, label, icon, tone='', sub=None) -%}
+  <div class="card h-100"><div class="card-body stat">
+    <div class="stat-icon {{ tone }}"><i class="bi bi-{{ icon }}"></i></div>
+    <div><div class="stat-value">{{ value }}</div><div class="stat-label">{{ label }}</div>
+      {% if sub %}<div class="small mt-1">{{ sub }}</div>{% endif %}</div>
+  </div></div>
+{%- endmacro %}
+
+{% macro status(value) -%}
+  <span class="badge badge-{{ value }}">{{ {'no_show': 'No-show', 'waitlist': 'Waiting list'}.get(value, value|replace('_', ' ')|capitalize) }}</span>
+{%- endmacro %}
+
+{% macro empty(icon, text) -%}
+  <div class="empty"><i class="bi bi-{{ icon }}"></i>{{ text }}</div>
+{%- endmacro %}

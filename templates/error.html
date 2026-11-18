@@ -1,16 +1,12 @@
-{% extends "base.html" %}
-
-{% block title %}Error {{ code }} - Tujali Telehealth{% endblock %}
-
+{% extends 'layout_public.html' %}
+{% block title %}{{ title }} · Tujali{% endblock %}
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6 text-center">
-            <h1 class="display-4">{{ code }}</h1>
-            <p class="lead">{{ message }}</p>
-            <a href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('login') }}"
-               class="btn btn-primary mt-3">Back to Tujali</a>
-        </div>
-    </div>
+<div class="auth-wrap">
+  <div class="text-center" style="max-width:460px">
+    <div class="display-4 fw-bold" style="color:var(--tj-primary)">{{ code }}</div>
+    <h1 class="h3 mt-2">{{ title }}</h1>
+    <p class="text-muted">{{ message }}</p>
+    <a class="btn btn-primary mt-2" href="{{ url_for('auth.home') if current_user.is_authenticated else url_for('public.index') }}">Go back</a>
+  </div>
 </div>
 {% endblock %}
