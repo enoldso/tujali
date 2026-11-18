@@ -1,1 +1,31 @@
-node_modules
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local SQLite database / Flask instance folder
+instance/
+*.db
+*.sqlite3
+
+# Node (ussd-geo)
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
